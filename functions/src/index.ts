@@ -173,3 +173,61 @@ export const onVendorPaymentWrite = functions.firestore
     return null;
   });
 
+// Business Rule: Sync client name and email to projects when client profile is updated
+export const onClientWrite = functions.firestore
+  .document('clients/{clientId}')
+  .onWrite(async (change: functions.Change<functions.firestore.DocumentSnapshot>) => {
+    const clientId = change.after.id || change.before.id;
+    console.log(`[TRIGGER] Processing client write for ${clientId}`);
+
+    // If client is deleted, we might want to do something, but for now we just care about updates
+    if (!change.after.exists) {
+       console.log(`[TRIGGER] Client ${clientId} was deleted, skipping sync.`);
+       return null;
+    }
+
+    const beforeData = change.before.exists ? change.before.data() : null;
+    const afterData = change.after.exists ? change.after.data() : null;
+
+    // Check if relevant fields changed
+    const oldName = beforeData?.clientName;
+    const newName = afterData?.clientName;
+    const oldEmail = beforeData?.email;
+    const newEmail = afterData?.email;
+
+    if (oldName === newName && oldEmail === newEmail) {
+      console.log(`[TRIGGER] Client ${clientId} name and email unchanged, skipping project sync.`);
+      return null;
+    }
+
+    console.log(`[TRIGGER] Syncing client ${clientId} details to associated projects...`);
+    
+    // Find all projects with this clientId
+    const projectsSnapshot = await db.collection('projects')
+      .where('clientId', '==', clientId)
+      .get();
+
+    if (projectsSnapshot.empty) {
+      console.log(`[TRIGGER] No projects found for client ${clientId}`);
+      return null;
+    }
+
+    const batch = db.batch();
+    let count = 0;
+
+    projectsSnapshot.forEach((docSnap: any) => {
+      const projectRef = db.collection('projects').doc(docSnap.id);
+      batch.update(projectRef, {
+        clientName: newName || '',
+        clientEmail: newEmail || '',
+        updatedAt: new Date().toISOString()
+      });
+      count++;
+    });
+
+    await batch.commit();
+    console.log(`[TRIGGER] Successfully synced client details to ${count} project(s).`);
+
+    return null;
+  });
+

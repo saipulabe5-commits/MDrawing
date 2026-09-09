@@ -8,7 +8,7 @@ import { ExpenseProvider } from '../context/ExpenseContext';
 import { TransmittalProvider } from '../context/TransmittalContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { Button, Card, SegmentedControl, Modal, Input } from '../components/ui';
-import { ArrowLeft, Plus, Upload, Download, Layers, BookmarkPlus } from 'lucide-react';
+import { ArrowLeft, Plus, Upload, Download, Layers, BookmarkPlus, Settings } from 'lucide-react';
 import { ProjectListView } from './project/ProjectListView';
 import { ProjectKanbanView } from './project/ProjectKanbanView';
 import { ProjectDeadlineView } from './project/ProjectDeadlineView';
@@ -19,6 +19,7 @@ import { ProjectTransmittalView } from './project/ProjectTransmittalView';
 import { ImportExcelModal } from '../components/ImportExcelModal';
 import { ApplyTemplateModal } from '../components/ApplyTemplateModal';
 import { SaveAsTemplateModal } from '../components/SaveAsTemplateModal';
+import { ProjectSettingsModal } from '../components/project/ProjectSettingsModal';
 import { exportDrawingListToExcel, exportDrawingListToPDF } from '../lib/exportUtils';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
@@ -29,7 +30,7 @@ function ProjectDetailContent() {
   const { canManageProjects, canViewFinance, canViewVendorCost } = usePermissions();
   const [viewMode, setViewMode] = useState('list');
   const [search, setSearch] = useState('');
-  const [activeModal, setActiveModal] = useState<'none' | 'import' | 'applyTemplate' | 'saveTemplate'>('none');
+  const [activeModal, setActiveModal] = useState<'none' | 'import' | 'applyTemplate' | 'saveTemplate' | 'settings'>('none');
 
   const project = projects.find(p => p.id === id);
 
@@ -145,6 +146,14 @@ function ProjectDetailContent() {
               <Button variant="secondary" size="sm" onClick={() => exportDrawingListToExcel(project.projectName, groups, items)}>
                 <Download className="w-3.5 h-3.5 mr-1" /> Excel
               </Button>
+              <Button 
+                variant="secondary" 
+                size="sm"
+                onClick={() => setActiveModal('settings')}
+                title="Pengaturan Proyek"
+              >
+                <Settings className="w-4 h-4 text-slate-500" />
+              </Button>
             </>
           )}
         </div>
@@ -202,6 +211,12 @@ function ProjectDetailContent() {
         projectName={project.projectName}
         groups={groups}
         items={items}
+      />
+
+      <ProjectSettingsModal
+        isOpen={activeModal === 'settings'}
+        onClose={() => setActiveModal('none')}
+        project={project}
       />
     </div>
   );

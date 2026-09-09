@@ -759,6 +759,49 @@ function initFirestoreSyncTriggers() {
   } catch (e: any) {
     console.warn("[TRIGGERS] Failed to mount vendorPayments listener:", e.message);
   }
+
+  try {
+    adminDb.collection("clients").onSnapshot((snapshot) => {
+      snapshot.docChanges().forEach(async (change) => {
+        // We only care about modifications
+        if (change.type === 'modified') {
+          const clientId = change.doc.id;
+          const data = change.doc.data();
+          const newName = data.clientName || '';
+          const newEmail = data.email || '';
+          
+          try {
+            const projectsSnap = await adminDb!.collection("projects").where("clientId", "==", clientId).get();
+            if (!projectsSnap.empty) {
+              const batch = adminDb!.batch();
+              let updatedCount = 0;
+              projectsSnap.forEach(proj => {
+                const pData = proj.data();
+                if (pData.clientName !== newName || pData.clientEmail !== newEmail) {
+                  batch.update(proj.ref, {
+                    clientName: newName,
+                    clientEmail: newEmail,
+                    updatedAt: new Date().toISOString()
+                  });
+                  updatedCount++;
+                }
+              });
+              if (updatedCount > 0) {
+                await batch.commit();
+                console.log(`[TRIGGERS] Synced client ${clientId} details to ${updatedCount} project(s)`);
+              }
+            }
+          } catch (err: any) {
+            console.error(`[TRIGGERS] Failed to sync projects for client ${clientId}:`, err.message);
+          }
+        }
+      });
+    }, (err) => {
+      console.warn("[TRIGGERS] clients listener warning:", err.message);
+    });
+  } catch (e: any) {
+    console.warn("[TRIGGERS] Failed to mount clients listener:", e.message);
+  }
 }
 
 async function startServer() {
