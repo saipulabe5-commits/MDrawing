@@ -9,9 +9,6 @@ import nodemailer from "nodemailer";
 import { GoogleGenAI } from "@google/genai";
 import { getTransporter, generateDeadlineEmailHtml, sanitizeHeader, isValidEmail } from "./server/mailer";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 // Helper to load Service Account credentials from environment variable
 function getServiceAccountCredential() {
   const rawKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
