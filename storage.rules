@@ -1,0 +1,15 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Allow authenticated users to read and upload attachments/evidence up to 50MB
+    match /{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() 
+        && request.resource.size < 50 * 1024 * 1024;
+    }
+  }
+}

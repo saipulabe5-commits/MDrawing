@@ -1,0 +1,471 @@
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { collection, doc, onSnapshot, query, setDoc, updateDoc, deleteDoc, where, orderBy, writeBatch } from "firebase/firestore";
+import { db, handleFirestoreError, OperationType } from "../lib/firebase";
+import { DrawingGroup, DrawingItem, DrawingRevision } from "../types";
+import { usePermissions } from "../hooks/usePermissions";
+import { syncStatusAndProgress } from "../lib/businessRules";
+import { generateSequentialDrawingNumbers } from "../lib/drawingNumberUtils";
+import { useAuth } from "./AuthContext";
+import { v4 as uuidv4 } from "uuid";
+import toast from "react-hot-toast";
+
+interface DrawingContextType {
+  groups: DrawingGroup[];
+  items: DrawingItem[];
+  revisions: DrawingRevision[];
+  loading: boolean;
+  createGroup: (name: string, projectId: string) => Promise<void>;
+  updateGroup: (id: string, name: string) => Promise<void>;
+  deleteGroup: (id: string, deleteItems: boolean) => Promise<void>;
+  createItem: (data: Omit<DrawingItem, "id" | "createdAt" | "updatedAt">) => Promise<void>;
+  updateItem: (id: string, data: Partial<DrawingItem>, newRevisionNote?: string) => Promise<void>;
+  deleteItem: (id: string) => Promise<void>;
+  reorderItems: (reorderedItems: DrawingItem[]) => Promise<void>;
+  renumberGroupItems: (groupId: string | null) => Promise<void>;
+  duplicateItem: (id: string) => Promise<void>;
+  bulkUpdateItems: (ids: string[], data: Partial<DrawingItem>) => Promise<void>;
+  importItems: (newGroups: Partial<DrawingGroup>[], newItems: Partial<DrawingItem>[]) => Promise<void>;
+}
+
+const DrawingContext = createContext<DrawingContextType | undefined>(undefined);
+
+export function DrawingProvider({ projectId, children }: { projectId: string; children: React.ReactNode }) {
+  const [groups, setGroups] = useState<DrawingGroup[]>([]);
+  const [items, setItems] = useState<DrawingItem[]>([]);
+  const [revisions, setRevisions] = useState<DrawingRevision[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { canManageProjects } = usePermissions();
+  const { appUser } = useAuth();
+
+  useEffect(() => {
+    if (!projectId) {
+      setGroups([]);
+      setItems([]);
+      setRevisions([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+
+    const qGroups = query(
+      collection(db, "drawingGroups"),
+      where("projectId", "==", projectId),
+      orderBy("sortOrder", "asc")
+    );
+
+    const unsubGroups = onSnapshot(qGroups, (snapshot) => {
+      setGroups(snapshot.docs.map(doc => doc.data() as DrawingGroup));
+    }, (error) => {
+      console.error("Error fetching drawing groups:", error);
+    });
+
+    const qItems = query(
+      collection(db, "drawingItems"),
+      where("projectId", "==", projectId),
+      where("isDeleted", "==", false),
+      orderBy("sortOrder", "asc")
+    );
+
+    const unsubItems = onSnapshot(qItems, (snapshot) => {
+      setItems(snapshot.docs.map(doc => doc.data() as DrawingItem));
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching drawing items:", error);
+      setLoading(false);
+    });
+
+    const qRevisions = query(
+      collection(db, "drawingRevisions"),
+      where("projectId", "==", projectId),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubRevisions = onSnapshot(qRevisions, (snapshot) => {
+      setRevisions(snapshot.docs.map(doc => doc.data() as DrawingRevision));
+    }, (error) => {
+      console.error("Error fetching drawing revisions:", error);
+    });
+
+    return () => {
+      unsubGroups();
+      unsubItems();
+      unsubRevisions();
+    };
+  }, [projectId]);
+
+  const createGroup = async (name: string, projectId: string) => {
+    if (!canManageProjects()) throw new Error("Unauthorized");
+    try {
+      const id = uuidv4();
+      const now = new Date().toISOString();
+      const sortOrder = groups.length > 0 ? Math.max(...groups.map(g => g.sortOrder)) + 1 : 0;
+      
+      const newGroup: DrawingGroup = {
+        id,
+        projectId,
+        groupName: name,
+        groupCode: name.substring(0, 3).toUpperCase(),
+        sortOrder,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await setDoc(doc(db, "drawingGroups", id), newGroup);
+      toast.success("Grup berhasil dibuat");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, "drawingGroups");
+      toast.error("Gagal membuat grup");
+    }
+  };
+
+  const updateGroup = async (id: string, name: string) => {
+    if (!canManageProjects()) throw new Error("Unauthorized");
+    try {
+      await updateDoc(doc(db, "drawingGroups", id), {
+        groupName: name,
+        updatedAt: new Date().toISOString(),
+      });
+      toast.success("Grup berhasil diperbarui");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `drawingGroups/${id}`);
+      toast.error("Gagal memperbarui grup");
+    }
+  };
+
+  const deleteGroup = async (id: string, deleteItems: boolean) => {
+    if (!canManageProjects()) throw new Error("Unauthorized");
+    try {
+      const batch = writeBatch(db);
+      batch.delete(doc(db, "drawingGroups", id));
+      
+      const groupItems = items.filter(i => i.groupId === id);
+      groupItems.forEach(item => {
+        if (deleteItems) {
+          batch.update(doc(db, "drawingItems", item.id), { isDeleted: true, updatedAt: new Date().toISOString() });
+        } else {
+          batch.update(doc(db, "drawingItems", item.id), { groupId: null, updatedAt: new Date().toISOString() });
+        }
+      });
+      
+      await batch.commit();
+      toast.success("Grup berhasil dihapus");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `drawingGroups/${id}`);
+      toast.error("Gagal menghapus grup");
+    }
+  };
+
+  const createItem = async (data: Omit<DrawingItem, "id" | "createdAt" | "updatedAt">) => {
+    if (!canManageProjects()) throw new Error("Unauthorized");
+    try {
+      const id = uuidv4();
+      const now = new Date().toISOString();
+      const synced = syncStatusAndProgress(data.status, data.progress);
+      const newItem: DrawingItem = {
+        ...data,
+        id,
+        status: synced.status as any,
+        progress: synced.progress,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await setDoc(doc(db, "drawingItems", id), newItem);
+      toast.success("Gambar berhasil ditambahkan");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, "drawingItems");
+      toast.error("Gagal menambahkan gambar");
+    }
+  };
+
+  const updateItem = async (id: string, data: Partial<DrawingItem>, newRevisionNote?: string) => {
+    const isTeam = appUser?.role === 'TEAM';
+    if (!canManageProjects() && !isTeam) throw new Error("Unauthorized");
+    try {
+      const currentItem = items.find(i => i.id === id);
+      if (!currentItem) return;
+
+      // If team member, check if item is assigned to them or unassigned
+      if (isTeam && !canManageProjects()) {
+        if (currentItem.picId && currentItem.picId !== appUser?.uid) {
+          throw new Error("Anda hanya dapat mengedit gambar yang ditugaskan kepada Anda.");
+        }
+      }
+
+      const newStatus = data.status || currentItem.status;
+      const newProgress = data.progress !== undefined ? data.progress : currentItem.progress;
+      const synced = syncStatusAndProgress(newStatus, newProgress);
+
+      if (isTeam && !canManageProjects()) {
+        // TEAM can only update status, progress, notes, updatedAt according to firestore.rules
+        const updatePayload: Record<string, any> = {
+          status: synced.status,
+          progress: synced.progress,
+          updatedAt: new Date().toISOString(),
+        };
+        if (data.notes !== undefined) {
+          updatePayload.notes = data.notes;
+        }
+        await updateDoc(doc(db, "drawingItems", id), updatePayload);
+        toast.success("Gambar berhasil diperbarui");
+        return;
+      }
+
+      const batch = writeBatch(db);
+      let newRevisionCount = currentItem.revisionCount;
+
+      if (newRevisionNote && appUser) {
+        newRevisionCount += 1;
+        const revId = uuidv4();
+        const rev: DrawingRevision = {
+          id: revId,
+          itemId: id,
+          projectId,
+          notes: newRevisionNote,
+          createdBy: appUser.uid,
+          createdByName: appUser.name || 'Unknown',
+          createdAt: new Date().toISOString()
+        };
+        batch.set(doc(db, "drawingRevisions", revId), rev);
+      }
+
+      batch.update(doc(db, "drawingItems", id), {
+        ...data,
+        status: synced.status,
+        progress: synced.progress,
+        revisionCount: newRevisionCount,
+        updatedAt: new Date().toISOString(),
+      });
+
+      await batch.commit();
+      toast.success("Gambar berhasil diperbarui");
+    } catch (error: any) {
+      console.error("Error updating item:", error);
+      toast.error(error.message || "Gagal memperbarui gambar");
+    }
+  };
+
+  const bulkUpdateItems = async (ids: string[], data: Partial<DrawingItem>) => {
+    const isTeam = appUser?.role === 'TEAM';
+    if (!canManageProjects() && !isTeam) {
+      toast.error("Akses terbatas: Anda tidak memiliki wewenang untuk mengubah data gambar.");
+      throw new Error("Unauthorized");
+    }
+    try {
+      const batch = writeBatch(db);
+      const now = new Date().toISOString();
+      let updatedCount = 0;
+
+      ids.forEach(id => {
+        const item = items.find(i => i.id === id);
+        if (item) {
+          if (isTeam && !canManageProjects()) {
+            if (item.picId && item.picId !== appUser?.uid) {
+              return;
+            }
+          }
+
+          const newStatus = data.status !== undefined ? data.status : item.status;
+          const newProgress = data.progress !== undefined ? data.progress : item.progress;
+          const synced = syncStatusAndProgress(newStatus, newProgress);
+
+          if (isTeam && !canManageProjects()) {
+            const updatePayload: Record<string, any> = {
+              status: synced.status,
+              progress: synced.progress,
+              updatedAt: now,
+            };
+            if (data.notes !== undefined) {
+              updatePayload.notes = data.notes;
+            }
+            batch.update(doc(db, "drawingItems", id), updatePayload);
+          } else {
+            const updatePayload: Record<string, any> = {
+              ...data,
+              status: synced.status,
+              progress: synced.progress,
+              updatedAt: now,
+            };
+            batch.update(doc(db, "drawingItems", id), updatePayload);
+          }
+          updatedCount++;
+        }
+      });
+
+      if (updatedCount === 0) {
+        toast.error("Tidak ada gambar yang dapat diperbarui (periksa hak akses tugas gambar)");
+        return;
+      }
+
+      await batch.commit();
+      toast.success(`${updatedCount} Gambar berhasil diperbarui`);
+    } catch (error: any) {
+      console.error("Error bulk updating items:", error);
+      handleFirestoreError(error, OperationType.UPDATE, "drawingItems (batch)");
+      toast.error(error.message || "Gagal mengupdate gambar secara massal");
+      throw error;
+    }
+  };
+
+  const duplicateItem = async (id: string) => {
+    if (!canManageProjects() || !appUser) throw new Error("Unauthorized");
+    try {
+      const itemToCopy = items.find(i => i.id === id);
+      if (!itemToCopy) return;
+      
+      const newId = uuidv4();
+      const now = new Date().toISOString();
+      const newItem: DrawingItem = {
+        ...itemToCopy,
+        id: newId,
+        drawingNumber: `${itemToCopy.drawingNumber}-COPY`,
+        status: 'Belum Mulai',
+        progress: 0,
+        revisionCount: 0,
+        notes: '',
+        createdBy: appUser.uid,
+        createdAt: now,
+        updatedAt: now
+      };
+      await setDoc(doc(db, "drawingItems", newId), newItem);
+      toast.success("Gambar berhasil diduplikasi");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, "drawingItems");
+      toast.error("Gagal menduplikasi gambar");
+    }
+  };
+
+  const importItems = async (newGroups: Partial<DrawingGroup>[], newItems: Partial<DrawingItem>[]) => {
+    if (!canManageProjects() || !appUser) throw new Error("Unauthorized");
+    try {
+      const batch = writeBatch(db);
+      const now = new Date().toISOString();
+      let addedGroups = 0;
+      let addedItems = 0;
+
+      newGroups.forEach(g => {
+        const id = g.id!;
+        batch.set(doc(db, "drawingGroups", id), { ...g, projectId, createdAt: now, updatedAt: now });
+        addedGroups++;
+      });
+
+      newItems.forEach(i => {
+        const id = uuidv4();
+        const synced = syncStatusAndProgress(i.status as string, i.progress as number);
+        batch.set(doc(db, "drawingItems", id), {
+          ...i,
+          id,
+          projectId,
+          status: synced.status,
+          progress: synced.progress,
+          isDeleted: false,
+          revisionCount: 0,
+          createdBy: appUser.uid,
+          createdAt: now,
+          updatedAt: now
+        });
+        addedItems++;
+      });
+
+      await batch.commit();
+      toast.success(`Berhasil mengimpor ${addedItems} gambar dan ${addedGroups} grup`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, "import batch");
+      toast.error("Gagal mengimpor gambar");
+    }
+  };
+
+  const deleteItem = async (id: string) => {
+    if (!canManageProjects()) throw new Error("Unauthorized");
+    try {
+      // Soft delete
+      await updateDoc(doc(db, "drawingItems", id), {
+        isDeleted: true,
+        updatedAt: new Date().toISOString(),
+      });
+      toast.success("Gambar berhasil dihapus");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `drawingItems/${id}`);
+      toast.error("Gagal menghapus gambar");
+    }
+  };
+
+  const reorderItems = async (reorderedItems: DrawingItem[]) => {
+    if (!canManageProjects()) throw new Error("Unauthorized");
+    try {
+      const batch = writeBatch(db);
+      const now = new Date().toISOString();
+      reorderedItems.forEach((item, index) => {
+        const itemRef = doc(db, "drawingItems", item.id);
+        const updateData: Record<string, any> = {
+          sortOrder: index,
+          updatedAt: now,
+        };
+        if (item.drawingNumber !== undefined) {
+          updateData.drawingNumber = item.drawingNumber;
+        }
+        if (item.groupId !== undefined) {
+          updateData.groupId = item.groupId;
+        }
+        batch.update(itemRef, updateData);
+      });
+      await batch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, "drawingItems (batch)");
+      toast.error("Gagal menyimpan urutan gambar");
+    }
+  };
+
+  const renumberGroupItems = async (groupId: string | null) => {
+    if (!canManageProjects()) throw new Error("Unauthorized");
+    try {
+      const group = groups.find(g => g.id === groupId);
+      const groupItems = items
+        .filter(i => !i.isDeleted && (i.groupId || null) === (groupId || null))
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+
+      if (groupItems.length === 0) {
+        toast("Tidak ada gambar dalam grup ini untuk diurutkan");
+        return;
+      }
+
+      const newNumbers = generateSequentialDrawingNumbers(groupItems, group?.groupName);
+      const batch = writeBatch(db);
+      const now = new Date().toISOString();
+
+      groupItems.forEach((item, index) => {
+        const itemRef = doc(db, "drawingItems", item.id);
+        batch.update(itemRef, {
+          sortOrder: index,
+          drawingNumber: newNumbers[index] || item.drawingNumber,
+          updatedAt: now,
+        });
+      });
+
+      await batch.commit();
+      toast.success(
+        group
+          ? `Nomor gambar grup "${group.groupName}" berhasil diurutkan otomatis (${newNumbers[0]} s/d ${newNumbers[newNumbers.length - 1]})`
+          : `Nomor gambar berhasil diurutkan otomatis (${newNumbers[0]} s/d ${newNumbers[newNumbers.length - 1]})`
+      );
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, "drawingItems (batch renumber)");
+      toast.error("Gagal mengurutkan nomor gambar");
+    }
+  };
+
+  return (
+    <DrawingContext.Provider value={{
+      groups, items, revisions, loading, createGroup, updateGroup, deleteGroup, createItem, updateItem, deleteItem, reorderItems, renumberGroupItems, duplicateItem, bulkUpdateItems, importItems
+    }}>
+      {children}
+    </DrawingContext.Provider>
+  );
+}
+
+export function useDrawings() {
+  const context = useContext(DrawingContext);
+  if (context === undefined) {
+    throw new Error("useDrawings must be used within a DrawingProvider");
+  }
+  return context;
+}

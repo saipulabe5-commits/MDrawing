@@ -1,0 +1,10 @@
+{
+  "projectId": "mdrawing",
+  "appId": "1:564142724096:web:b1a8bb6242c4754ea7b4e5",
+  "apiKey": "AIzaSyC9ehcI4UceDBpxsKU_xMrE9ZeMvnTDWdg",
+  "authDomain": "mdrawing.firebaseapp.com",
+  "storageBucket": "mdrawing.firebasestorage.app",
+  "messagingSenderId": "564142724096",
+  "measurementId": "G-GPW06QE8L3",
+  "firestoreDatabaseId": "default"
+}

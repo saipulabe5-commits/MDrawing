@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+/* 
+ * ==============================================================================
+ * 📐 STANDAR TIPOGRAFI & UKURAN FONT MINIMUM APLIKASI (PERMANENT DESIGN RULES)
+ * ==============================================================================
+ * 1. Ukuran font minimum di seluruh aplikasi adalah 11px (text-[11px]) untuk label
+ *    super-ringkas (mis. "SKALA:", "PIC:" pada kartu mobile atau header tabel ringkas).
+ * 2. Ukuran font standar untuk badge status, badge aksi, tag, chip, dan teks fungsional
+ *    lainnya adalah minimal 12px (text-xs) dengan padding proporsional (px-2.5 py-1).
+ * 3. JANGAN gunakan text-[10px], text-[9px], atau lebih kecil di komponen baru manapun
+ *    ke depannya untuk menjamin kenyamanan baca (legibility) dan kepatuhan WCAG 2.1 AA.
+ * ==============================================================================
+ */
+
+@theme {
+  --color-bg-light: #F8FAFC;
+  --color-surface-light: #FFFFFF;
+  --color-bg-secondary-light: #F1F5F9;
+  --color-text-primary-light: #0F172A;
+  --color-text-secondary-light: #334155;
+  --color-text-tertiary-light: #475569;
+  --color-border-light: #E2E8F0;
+
+  --color-bg-dark: #0F172A;
+  --color-surface-dark: #1E293B;
+  --color-bg-secondary-dark: #334155;
+  --color-text-primary-dark: #F8FAFC;
+  --color-text-secondary-dark: #94A3B8;
+  --color-text-tertiary-dark: #8C9BB1;
+  --color-border-dark: rgba(255, 255, 255, 0.12);
+  
+  /* Solid colors for backgrounds / primary accents */
+  --color-system-blue: #007AFF;
+  --color-system-green: #16A34A;
+  --color-system-orange: #EA580C;
+  --color-system-red: #DC2626;
+  
+  --color-system-blue-dark: #38BDF8;
+  --color-system-green-dark: #4ADE80;
+  --color-system-orange-dark: #FB923C;
+  --color-system-red-dark: #F87171;
+  
+  /* Dedicated High-Contrast Text Variants for WCAG AA compliance (>= 4.5:1) */
+  --color-system-blue-text-light: #0369A1;
+  --color-system-blue-text-dark: #7DD3FC;
+
+  /* Font Family to mimic macOS San Francisco */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Inter, sans-serif;
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --color-bg: var(--color-bg-light);
+    --color-surface: var(--color-surface-light);
+    --color-bg-secondary: var(--color-bg-secondary-light);
+    --color-text-primary: var(--color-text-primary-light);
+    --color-text-secondary: var(--color-text-secondary-light);
+    --color-text-tertiary: var(--color-text-tertiary-light);
+    --color-border: var(--color-border-light);
+    
+    --color-accent-blue: var(--color-system-blue);
+    --color-accent-blue-text: var(--color-system-blue-text-light);
+    --color-accent-green: var(--color-system-green);
+    --color-accent-orange: var(--color-system-orange);
+    --color-accent-red: var(--color-system-red);
+  }
+
+  .dark {
+    color-scheme: dark;
+    --color-bg: var(--color-bg-dark);
+    --color-surface: var(--color-surface-dark);
+    --color-bg-secondary: var(--color-bg-secondary-dark);
+    --color-text-primary: var(--color-text-primary-dark);
+    --color-text-secondary: var(--color-text-secondary-dark);
+    --color-text-tertiary: var(--color-text-tertiary-dark);
+    --color-border: var(--color-border-dark);
+    
+    --color-accent-blue: var(--color-system-blue-dark);
+    --color-accent-blue-text: var(--color-system-blue-text-dark);
+    --color-accent-green: var(--color-system-green-dark);
+    --color-accent-orange: var(--color-system-orange-dark);
+    --color-accent-red: var(--color-system-red-dark);
+  }
+
+  select {
+    color-scheme: light;
+  }
+
+  .dark select,
+  select.dark {
+    color-scheme: dark;
+  }
+
+  select option {
+    background-color: var(--color-surface);
+    color: var(--color-text-primary);
+  }
+
+  .dark select option {
+    background-color: #1E293B;
+    color: #F8FAFC;
+  }
+
+  html, body, #root {
+    background-color: var(--color-bg);
+    color: var(--color-text-primary);
+    min-height: 100%;
+  }
+
+  body {
+    @apply font-sans antialiased;
+    letter-spacing: -0.015em;
+  }
+}
