@@ -78,10 +78,11 @@ function ProjectDetailContent() {
           </Link>
           <div>
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className="text-xs font-mono font-bold text-[var(--color-text-secondary)] bg-black/5 dark:bg-white/10 px-2 py-0.5 rounded">
+              <div className="text-xs font-mono font-bold px-2.5 py-1 rounded-md bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)] tracking-wide shadow-sm flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent-blue)] opacity-70"></span>
                 {project.projectCode}
-              </span>
-              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+              </div>
+              <span className={`text-[11px] font-bold px-2 py-1 rounded-md ${
                 project.status === 'Berjalan' 
                   ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
                   : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'

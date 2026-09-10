@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Input, Button } from '../ui';
 import { useProjects } from '../../context/ProjectContext';
-import { useFinance } from '../../context/FinanceContext';
-import { Project } from '../../types';
+import { Project, Client } from '../../types';
 import toast from 'react-hot-toast';
+import { db } from '../../lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
 interface ProjectSettingsModalProps {
   isOpen: boolean;
@@ -13,7 +14,7 @@ interface ProjectSettingsModalProps {
 
 export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettingsModalProps) {
   const { updateProject } = useProjects();
-  const { clients } = useFinance();
+  const [clients, setClients] = useState<Client[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [formData, setFormData] = useState({
@@ -23,6 +24,23 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
     clientId: '',
     location: '',
   });
+
+  useEffect(() => {
+    // Fetch clients independently since this modal might be used outside ProjectDetailView
+    const fetchClients = async () => {
+      try {
+        const snapshot = await getDocs(collection(db, 'clients'));
+        const clientList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client));
+        setClients(clientList);
+      } catch (error) {
+        console.error("Failed to fetch clients for project settings:", error);
+      }
+    };
+    
+    if (isOpen) {
+      fetchClients();
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && project) {
@@ -88,7 +106,7 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-[var(--color-text-secondary)]">Kode Proyek</label>
+            <label className="text-xs font-medium text-[var(--color-text-secondary)]">ID Proyek (Kode)</label>
             <Input 
               value={formData.projectCode} 
               onChange={e => setFormData({...formData, projectCode: e.target.value})} 
@@ -98,28 +116,56 @@ export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettin
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-[var(--color-text-secondary)]">Tipe Proyek</label>
-            <Input 
-              value={formData.projectType} 
-              onChange={e => setFormData({...formData, projectType: e.target.value})} 
-              placeholder="Contoh: Residensial"
-            />
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-[var(--color-text-secondary)]">Jenis / Bidang Pekerjaan</label>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: 'Arsitektur', label: 'Arsitektur' },
+              { id: 'Struktur', label: 'Struktur' },
+              { id: 'MEP', label: 'MEP' },
+              { id: 'Interior', label: 'Interior' },
+              { id: 'Masterplan', label: 'Masterplan' },
+              { id: 'Infrastruktur', label: 'Infrastruktur' },
+              { id: 'QS', label: 'Quantity Surveyor (QS)' }
+            ].map(type => {
+              const isSelected = formData.projectType.split(', ').includes(type.id);
+              return (
+                <button
+                  key={type.id}
+                  type="button"
+                  onClick={() => {
+                    const types = formData.projectType.split(', ').filter(Boolean);
+                    if (isSelected) {
+                      setFormData({...formData, projectType: types.filter(t => t !== type.id).join(', ')});
+                    } else {
+                      setFormData({...formData, projectType: [...types, type.id].join(', ')});
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                    isSelected 
+                      ? 'bg-[var(--color-accent-blue)] text-white shadow-sm border-[var(--color-accent-blue)]' 
+                      : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:bg-[var(--color-bg-secondary)]'
+                  } border`}
+                >
+                  {type.label}
+                </button>
+              );
+            })}
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-[var(--color-text-secondary)]">Klien</label>
-            <select
-              className="w-full h-10 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-shadow"
-              value={formData.clientId}
-              onChange={(e) => setFormData({...formData, clientId: e.target.value})}
-            >
-              <option value="">Pilih Klien (Opsional)</option>
-              {clients.map(c => (
-                <option key={c.id} value={c.id}>{c.clientName} {c.companyName ? `(${c.companyName})` : ''}</option>
-              ))}
-            </select>
-          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-[var(--color-text-secondary)]">Klien</label>
+          <select
+            className="w-full h-10 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-shadow"
+            value={formData.clientId}
+            onChange={(e) => setFormData({...formData, clientId: e.target.value})}
+          >
+            <option value="">Pilih Klien (Opsional)</option>
+            {clients.map(c => (
+              <option key={c.id} value={c.id}>{c.clientName} {c.companyName ? `(${c.companyName})` : ''}</option>
+            ))}
+          </select>
         </div>
 
         <div className="space-y-1">

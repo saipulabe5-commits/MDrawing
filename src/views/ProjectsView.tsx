@@ -1,18 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useProjects } from '../context/ProjectContext';
 import { Button, Card, Badge, Input, Modal } from '../components/ui';
-import { Plus, Search, FolderKanban, BookTemplate, Info } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Plus, Search, FolderKanban, BookTemplate, Info, Settings, Trash2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { usePermissions } from '../hooks/usePermissions';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { DrawingTemplate } from '../types';
+import { DrawingTemplate, Project } from '../types';
+import { ProjectSettingsModal } from '../components/project/ProjectSettingsModal';
+import toast from 'react-hot-toast';
 
 export function ProjectsView() {
-  const { projects, loadingProjects, createProject } = useProjects();
+  const { projects, loadingProjects, createProject, deleteProject } = useProjects();
   const { canManageProjects } = usePermissions();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+  const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
 
   // Form states
   const [projectName, setProjectName] = useState('');
@@ -35,6 +40,28 @@ export function ProjectsView() {
     }, (err) => console.error("Error fetching templates in ProjectsView:", err));
     return () => unsub();
   }, []);
+
+  // Auto-generate canonical project code when modal opens
+  useEffect(() => {
+    if (isNewModalOpen && !projectCode && projects.length >= 0) {
+      const year = new Date().getFullYear();
+      const prefix = `PRJ-${year}-`;
+      let maxSequence = 0;
+      
+      projects.forEach(p => {
+        if (p.projectCode && p.projectCode.startsWith(prefix)) {
+          const seqStr = p.projectCode.substring(prefix.length);
+          const seq = parseInt(seqStr, 10);
+          if (!isNaN(seq) && seq > maxSequence) {
+            maxSequence = seq;
+          }
+        }
+      });
+      
+      const nextSequence = maxSequence + 1;
+      setProjectCode(`${prefix}${nextSequence.toString().padStart(3, '0')}`);
+    }
+  }, [isNewModalOpen, projects, projectCode]);
 
   const filteredProjects = projects.filter(p => 
     p.projectName.toLowerCase().includes(search.toLowerCase()) || 
@@ -96,6 +123,17 @@ export function ProjectsView() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!projectToDelete) return;
+    try {
+      await deleteProject(projectToDelete.id);
+      toast.success('Proyek berhasil dihapus');
+      setProjectToDelete(null);
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal menghapus proyek');
+    }
+  };
+
   if (loadingProjects) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -154,7 +192,7 @@ export function ProjectsView() {
           {filteredProjects.map((project) => (
             <div key={project.id} className="relative group">
               <Link to={`/projects/${project.id}`}>
-                <Card className="p-5 hover:border-[var(--color-accent-blue)] transition-all cursor-pointer h-full flex flex-col group">
+                <Card className="p-5 hover:border-[var(--color-accent-blue)] transition-all cursor-pointer h-full flex flex-col group relative">
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <Badge variant={getStatusColor(project.status) as any}>{project.status}</Badge>
@@ -164,9 +202,42 @@ export function ProjectsView() {
                         </span>
                       )}
                     </div>
-                    <span className="text-xs font-mono text-[var(--color-text-secondary)] bg-black/5 dark:bg-white/10 px-2 py-1 rounded">
-                      {project.projectCode}
-                    </span>
+                    
+                    <div className="flex items-center gap-2 relative z-10" onClick={e => e.preventDefault()}>
+                      {canManageProjects() && (
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-[var(--color-bg-primary)] p-1 rounded-md shadow-sm border border-[var(--color-border)] absolute right-full mr-2 top-0 whitespace-nowrap">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-7 px-2 text-xs" 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setProjectToEdit(project);
+                            }}
+                          >
+                            <Settings className="w-3.5 h-3.5 mr-1" /> Edit
+                          </Button>
+                          <div className="w-px h-4 bg-[var(--color-border)]"></div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-7 px-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10" 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setProjectToDelete(project);
+                            }}
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-1" /> Hapus
+                          </Button>
+                        </div>
+                      )}
+                      <div className="text-xs font-mono font-bold px-2.5 py-1 rounded-md bg-[var(--color-bg-secondary)] border border-[var(--color-border)] text-[var(--color-text-primary)] tracking-wide shadow-sm flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent-blue)] opacity-70"></span>
+                        {project.projectCode}
+                      </div>
+                    </div>
                   </div>
                   <h3 className="text-base font-semibold text-[var(--color-text-primary)] group-hover:text-[var(--color-accent-blue)] transition-colors line-clamp-2">
                     {project.projectName}
@@ -243,20 +314,53 @@ export function ProjectsView() {
             )}
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-sm font-medium">Tipe Proyek</label>
-              <Input value={projectType} onChange={e => setProjectType(e.target.value)} placeholder="Contoh: Residensial" />
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Jenis / Bidang Pekerjaan</label>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { id: 'Arsitektur', label: 'Arsitektur' },
+                { id: 'Struktur', label: 'Struktur' },
+                { id: 'MEP', label: 'MEP' },
+                { id: 'Interior', label: 'Interior' },
+                { id: 'Masterplan', label: 'Masterplan' },
+                { id: 'Infrastruktur', label: 'Infrastruktur' },
+                { id: 'QS', label: 'Quantity Surveyor (QS)' }
+              ].map(type => {
+                const isSelected = projectType.split(', ').includes(type.id);
+                return (
+                  <button
+                    key={type.id}
+                    type="button"
+                    onClick={() => {
+                      const types = projectType.split(', ').filter(Boolean);
+                      if (isSelected) {
+                        setProjectType(types.filter(t => t !== type.id).join(', '));
+                      } else {
+                        setProjectType([...types, type.id].join(', '));
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                      isSelected 
+                        ? 'bg-[var(--color-accent-blue)] text-white shadow-sm border-[var(--color-accent-blue)]' 
+                        : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:bg-[var(--color-bg-secondary)]'
+                    } border`}
+                  >
+                    {type.label}
+                  </button>
+                );
+              })}
             </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-sm font-medium">Nama Klien *</label>
               <Input required value={clientName} onChange={e => setClientName(e.target.value)} />
             </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Lokasi</label>
-            <Input value={location} onChange={e => setLocation(e.target.value)} />
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Lokasi</label>
+              <Input value={location} onChange={e => setLocation(e.target.value)} />
+            </div>
           </div>
 
           <div className="space-y-1">
@@ -279,6 +383,36 @@ export function ProjectsView() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Edit Project Settings Modal */}
+      {projectToEdit && (
+        <ProjectSettingsModal
+          isOpen={!!projectToEdit}
+          onClose={() => setProjectToEdit(null)}
+          project={projectToEdit}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      <Modal isOpen={!!projectToDelete} onClose={() => setProjectToDelete(null)} title="Hapus Proyek">
+        <div className="space-y-4">
+          <div className="flex flex-col items-center justify-center p-4 text-center">
+            <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center mb-4">
+              <Trash2 className="w-6 h-6 text-red-600 dark:text-red-500" />
+            </div>
+            <h3 className="text-lg font-medium text-[var(--color-text-primary)]">Hapus Proyek?</h3>
+            <p className="text-sm text-[var(--color-text-secondary)] mt-2">
+              Anda yakin ingin menghapus proyek <strong>{projectToDelete?.projectName}</strong>? Tindakan ini tidak dapat dibatalkan dan semua data terkait proyek ini akan hilang.
+            </p>
+          </div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-[var(--color-border)]">
+            <Button variant="ghost" onClick={() => setProjectToDelete(null)}>Batal</Button>
+            <Button className="bg-red-500 hover:bg-red-600 text-white" onClick={handleDelete}>
+              Ya, Hapus Proyek
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

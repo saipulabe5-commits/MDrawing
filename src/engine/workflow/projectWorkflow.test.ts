@@ -100,11 +100,23 @@ console.log("\n[TEST 3] Timeline & Commercial Baseline Validation...");
       startDate: "2026-09-01",
       targetDate: "2026-12-31",
       contractValue: 500_000_000,
-      budgetOtherExpenses: 50_000_000
+      budgetOtherExpenses: 50_000_000 // exactly 10%
     }
   };
   const validRes = validateWorkflowStage("TIMELINE_COMMERCIAL", validDateContext);
-  assert(validRes.valid, "Valid timeline & baseline must pass");
+  assert(validRes.valid, "Valid timeline & baseline with 10% budget must pass");
+
+  const exceededBudgetContext = {
+    project: {
+      startDate: "2026-09-01",
+      targetDate: "2026-12-31",
+      contractValue: 500_000_000,
+      budgetOtherExpenses: 60_000_000 // 12% (> 10%)
+    }
+  };
+  const exceededRes = validateWorkflowStage("TIMELINE_COMMERCIAL", exceededBudgetContext);
+  assert(!exceededRes.valid, "Budget exceeding 10% must be rejected");
+  assert(exceededRes.errors.some(e => e.includes("maksimal 10%")), "Error mentions max 10%");
 }
 console.log("✓ Timeline & Commercial Baseline Validation PASSED");
 

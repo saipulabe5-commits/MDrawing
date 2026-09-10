@@ -4,7 +4,8 @@ import {
   Building, CheckCircle2, AlertTriangle, ArrowRight, ArrowLeft, 
   Save, ShieldCheck, Users, FileText, Layers, DollarSign, 
   Calendar, Briefcase, Plus, Trash2, Lock, Sparkles, Check,
-  XCircle, Clock, Percent, Calculator, ChevronRight, HelpCircle
+  XCircle, Clock, Percent, Calculator, ChevronRight, HelpCircle,
+  RefreshCw
 } from 'lucide-react';
 import { useProjects } from '../context/ProjectContext';
 import { useAuth } from '../context/AuthContext';
@@ -33,6 +34,41 @@ import { db } from '../lib/firebase';
 import { Button, Card, Input, Badge } from '../components/ui';
 import { v4 as uuidv4 } from 'uuid';
 import toast from 'react-hot-toast';
+
+export const DISCIPLINE_NAME_MAP: Record<string, string> = {
+  'Arsitektur': 'Jasa Pembuatan Gambar DED Arsitektur Lengkap',
+  'Struktur': 'Jasa Pembuatan Gambar DED Struktur & Konstruksi',
+  'MEP': 'Jasa Pembuatan Gambar DED MEP (Mekanikal, Elektrikal, Plumbing)',
+  'Interior': 'Jasa Pembuatan Gambar DED Desain Interior & Fit-Out',
+  'Masterplan': 'Jasa Pembuatan Gambar Masterplan & Kawasan',
+  'Infrastruktur': 'Jasa Pembuatan Gambar DED Infrastruktur & Cut/Fill',
+  'QS': 'Jasa Perhitungan Quantity Surveyor (QS) & Estimasi Biaya (RAB)'
+};
+
+export function generateQuotationItemsFromProjectType(typesString: string, totalVal: number) {
+  const types = (typesString || 'Arsitektur').split(', ').map(t => t.trim()).filter(Boolean);
+  if (types.length === 0) {
+    return [{
+      id: uuidv4(),
+      description: 'Jasa Pembuatan Gambar DED Lengkap',
+      quantity: 1,
+      unit: 'Paket',
+      unitPrice: totalVal || 0
+    }];
+  }
+
+  const count = types.length;
+  const basePrice = count > 0 && totalVal > 0 ? Math.floor(totalVal / count) : 0;
+  const remainder = count > 0 && totalVal > 0 ? totalVal - (basePrice * count) : 0;
+
+  return types.map((t, idx) => ({
+    id: uuidv4(),
+    description: DISCIPLINE_NAME_MAP[t] || `Jasa Pembuatan Gambar DED ${t}`,
+    quantity: 1,
+    unit: 'Paket',
+    unitPrice: idx === 0 ? (basePrice + remainder) : basePrice
+  }));
+}
 
 export function NewProjectWizardView() {
   const navigate = useNavigate();
@@ -82,7 +118,7 @@ export function NewProjectWizardView() {
   const [contractValue, setContractValue] = useState<number>(0);
   const [taxPolicy, setTaxPolicy] = useState<'NON_PPN' | 'PPN_11' | 'PPN_12'>('PPN_11');
   const [targetProfitPercentage, setTargetProfitPercentage] = useState<number>(25);
-  const [budgetOtherExpenses, setBudgetOtherExpenses] = useState<number>(0);
+  const [budgetOperationalPercent, setBudgetOperationalPercent] = useState<number>(0);
 
   // Drawing Setup State (Step 4 & 6)
   const [drawingSetupMode, setDrawingSetupMode] = useState<'template' | 'manual'>('template');
@@ -95,15 +131,14 @@ export function NewProjectWizardView() {
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
 
   // Commercial / Quotation State (Step 7)
+  const [hasUserEditedQuotation, setHasUserEditedQuotation] = useState<boolean>(false);
   const [quotationItems, setQuotationItems] = useState<Array<{
     id: string;
     description: string;
     quantity: number;
     unit: string;
     unitPrice: number;
-  }>>([
-    { id: uuidv4(), description: 'Jasa Pembuatan Gambar DED Lengkap', quantity: 1, unit: 'Paket', unitPrice: 0 }
-  ]);
+  }>>(() => generateQuotationItemsFromProjectType('Arsitektur', 0));
   const [quotationDiscount, setQuotationDiscount] = useState<number>(0);
   const [quotationStatus, setQuotationStatus] = useState<'Draft' | 'Sent' | 'Approved'>('Draft');
 
@@ -148,12 +183,25 @@ export function NewProjectWizardView() {
 
   // Auto-generate suggested canonical project code if empty
   useEffect(() => {
-    if (!projectCode && projects.length >= 0) {
+    if (!projectCode && projects.length >= 0 && !activeProjectId) {
       const year = new Date().getFullYear();
-      const count = projects.length + 1;
-      setProjectCode(`PRJ-${year}-${count.toString().padStart(3, '0')}`);
+      const prefix = `PRJ-${year}-`;
+      let maxSequence = 0;
+      
+      projects.forEach(p => {
+        if (p.projectCode && p.projectCode.startsWith(prefix)) {
+          const seqStr = p.projectCode.substring(prefix.length);
+          const seq = parseInt(seqStr, 10);
+          if (!isNaN(seq) && seq > maxSequence) {
+            maxSequence = seq;
+          }
+        }
+      });
+      
+      const nextSequence = maxSequence + 1;
+      setProjectCode(`${prefix}${nextSequence.toString().padStart(3, '0')}`);
     }
-  }, [projects]);
+  }, [projects, activeProjectId]);
 
   // Load existing project if activeProjectId provided (Resume Draft)
   useEffect(() => {
@@ -169,7 +217,12 @@ export function NewProjectWizardView() {
       setStartDate(existing.startDate || new Date().toISOString().split('T')[0]);
       setTargetDate(existing.targetDate || '');
       setContractValue(existing.contractValue || 0);
-      setBudgetOtherExpenses(existing.budgetOtherExpenses || 0);
+      if (existing.budgetOtherExpenses && existing.contractValue && existing.contractValue > 0) {
+        const pct = Math.round((existing.budgetOtherExpenses / existing.contractValue) * 1000) / 10;
+        setBudgetOperationalPercent(Math.min(10, Math.max(0, pct)));
+      } else {
+        setBudgetOperationalPercent(0);
+      }
       setProjectLeaderId(existing.projectLeaderId || '');
       setProjectLeaderName(existing.projectLeaderName || '');
       setSelectedMembers(existing.members || []);
@@ -184,6 +237,33 @@ export function NewProjectWizardView() {
       }
     }
   }, [activeProjectId, projects]);
+
+  // Automatically sync quotation items when projectType or contractValue changes (unless user manually modified)
+  useEffect(() => {
+    if (!hasUserEditedQuotation && !activeProjectId) {
+      setQuotationItems(generateQuotationItemsFromProjectType(projectType, contractValue));
+    }
+  }, [projectType, contractValue, hasUserEditedQuotation, activeProjectId]);
+
+  // Quotation Calculations
+  const calculatedQuotation = useMemo(() => {
+    const taxPct = taxPolicy === 'NON_PPN' ? 0 : taxPolicy === 'PPN_12' ? 12 : 11;
+    return calculateQuotationTotals(quotationItems, quotationDiscount, taxPct);
+  }, [quotationItems, quotationDiscount, taxPolicy]);
+
+  const effectiveContractValue = calculatedQuotation.grandTotal > 0 ? calculatedQuotation.grandTotal : contractValue;
+
+  const budgetOtherExpenses = useMemo(() => {
+    if (!effectiveContractValue || effectiveContractValue <= 0) return 0;
+    return Math.round(effectiveContractValue * ((budgetOperationalPercent || 0) / 100));
+  }, [effectiveContractValue, budgetOperationalPercent]);
+
+  // Synchronize contractValue with Quotation grandTotal whenever quotation items have positive total
+  useEffect(() => {
+    if (calculatedQuotation.grandTotal > 0 && contractValue !== calculatedQuotation.grandTotal) {
+      setContractValue(calculatedQuotation.grandTotal);
+    }
+  }, [calculatedQuotation.grandTotal, contractValue]);
 
   // Build Context for Validators
   const currentWorkflowContext = useMemo(() => {
@@ -204,7 +284,7 @@ export function NewProjectWizardView() {
         clientName: clientNameFinal,
         startDate,
         targetDate,
-        contractValue,
+        contractValue: effectiveContractValue,
         budgetOtherExpenses,
         projectLeaderId,
         projectLeaderName,
@@ -214,31 +294,42 @@ export function NewProjectWizardView() {
       },
       drawingItems,
       financeTerms,
+      quotation: quotationItems.length > 0 ? {
+        id: uuidv4(),
+        projectId: activeProjectId || '',
+        clientId: selectedClientId || '',
+        quotationNumber: `QUO-${projectCode || 'DRAFT'}`,
+        date: startDate || new Date().toISOString().split('T')[0],
+        validUntil: targetDate || '',
+        status: quotationStatus,
+        items: quotationItems.map(item => ({
+          ...item,
+          totalPrice: item.quantity * item.unitPrice
+        })),
+        subTotal: calculatedQuotation.subTotal,
+        discount: calculatedQuotation.discount,
+        tax: calculatedQuotation.tax,
+        taxPercentage: calculatedQuotation.taxPercentage,
+        grandTotal: calculatedQuotation.grandTotal,
+        notes: '',
+        termsAndConditions: '',
+        createdBy: appUser?.id || '',
+        createdAt: '',
+        updatedAt: ''
+      } : undefined,
       allProjectCodes: projects.map(p => p.projectCode),
       user: appUser
     };
   }, [
     activeProjectId, projectName, projectCode, projectType, location, description,
-    selectedClientId, clientMode, newClientData, startDate, targetDate, contractValue,
+    selectedClientId, clientMode, newClientData, startDate, targetDate, effectiveContractValue,
     budgetOtherExpenses, projectLeaderId, projectLeaderName, selectedMembers,
-    taxPolicy, targetProfitPercentage, drawingItems, financeTerms, projects, appUser, existingClients
+    taxPolicy, targetProfitPercentage, drawingItems, financeTerms, projects, appUser, existingClients,
+    quotationItems, calculatedQuotation, quotationStatus
   ]);
 
   const currentStageName = WIZARD_ORDERED_STAGES[currentStepIndex];
   const currentStageDef = CANONICAL_WORKFLOW_STAGES[currentStageName];
-
-  // Quotation Calculations
-  const calculatedQuotation = useMemo(() => {
-    const taxPct = taxPolicy === 'NON_PPN' ? 0 : taxPolicy === 'PPN_12' ? 12 : 11;
-    return calculateQuotationTotals(quotationItems, quotationDiscount, taxPct);
-  }, [quotationItems, quotationDiscount, taxPolicy]);
-
-  // Synchronize contractValue with Quotation grandTotal if quotation is defined
-  useEffect(() => {
-    if (calculatedQuotation.grandTotal > 0 && contractValue === 0) {
-      setContractValue(calculatedQuotation.grandTotal);
-    }
-  }, [calculatedQuotation.grandTotal]);
 
   // Pre-Flight Evaluation
   const preFlightResult = useMemo(() => {
@@ -601,7 +692,7 @@ export function NewProjectWizardView() {
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center justify-between">
-                  <span>Kode Proyek Kanonik <span className="text-rose-500">*</span></span>
+                  <span>ID Proyek (Kode) <span className="text-rose-500">*</span></span>
                   <span className="text-[11px] text-[var(--color-text-tertiary)]">Format: PRJ-YYYY-XXX</span>
                 </label>
                 <Input 
@@ -612,22 +703,49 @@ export function NewProjectWizardView() {
                 />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <label className="text-xs font-semibold text-[var(--color-text-secondary)]">
                   Jenis / Bidang Pekerjaan <span className="text-rose-500">*</span>
                 </label>
-                <select
-                  value={projectType}
-                  onChange={(e) => setProjectType(e.target.value)}
-                  className="flex h-10 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 text-sm focus:ring-2 font-medium"
-                >
-                  <option value="Arsitektur">Arsitektur (Architectural Design)</option>
-                  <option value="Struktur">Struktur (Structural Engineering)</option>
-                  <option value="MEP">MEP (Mechanical, Electrical, Plumbing)</option>
-                  <option value="Interior">Desain Interior & Fit-Out</option>
-                  <option value="Masterplan">Masterplan & Kawasan</option>
-                  <option value="Infrastruktur">Infrastruktur & Sipil</option>
-                </select>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: 'Arsitektur', label: 'Arsitektur' },
+                    { id: 'Struktur', label: 'Struktur' },
+                    { id: 'MEP', label: 'MEP' },
+                    { id: 'Interior', label: 'Interior' },
+                    { id: 'Masterplan', label: 'Masterplan' },
+                    { id: 'Infrastruktur', label: 'Infrastruktur' },
+                    { id: 'QS', label: 'Quantity Surveyor (QS)' }
+                  ].map(type => {
+                    const isSelected = projectType.split(', ').includes(type.id);
+                    return (
+                      <button
+                        key={type.id}
+                        type="button"
+                        onClick={() => {
+                          const types = projectType.split(', ').filter(Boolean);
+                          let updated = '';
+                          if (isSelected) {
+                            updated = types.filter(t => t !== type.id).join(', ');
+                          } else {
+                            updated = [...types, type.id].join(', ');
+                          }
+                          setProjectType(updated);
+                          if (!hasUserEditedQuotation) {
+                            setQuotationItems(generateQuotationItemsFromProjectType(updated, contractValue));
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                          isSelected 
+                            ? 'bg-[var(--color-accent-blue)] text-white shadow-sm border-[var(--color-accent-blue)]' 
+                            : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:bg-[var(--color-bg-secondary)]'
+                        } border`}
+                      >
+                        {type.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="space-y-1">
@@ -873,18 +991,91 @@ export function NewProjectWizardView() {
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-[var(--color-text-secondary)]">
-                  Alokasi Budget Operasional Awal (IDR)
-                </label>
-                <Input 
-                  type="number"
-                  min="0"
-                  value={budgetOtherExpenses || ''}
-                  onChange={(e) => setBudgetOtherExpenses(normalizeMoney(e.target.value))}
-                  placeholder="Rp 0"
-                  className="font-mono"
-                />
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-[var(--color-text-secondary)] flex items-center gap-1.5">
+                    <span>Alokasi Budget Operasional Awal (%)</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-[var(--color-accent-blue)] border border-blue-500/20">
+                      Maks. 10%
+                    </span>
+                  </label>
+                  {contractValue > 0 && (
+                    <span className="text-[11px] font-mono text-[var(--color-text-secondary)]">
+                      Pagu Maks. 10%: <strong className="text-[var(--color-text-primary)]">Rp {Math.round(contractValue * 0.1).toLocaleString('id-ID')}</strong>
+                    </span>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <Input 
+                    type="number"
+                    min="0"
+                    max="10"
+                    step="0.5"
+                    value={budgetOperationalPercent !== undefined ? budgetOperationalPercent : ''}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      if (isNaN(val)) {
+                        setBudgetOperationalPercent(0);
+                      } else {
+                        setBudgetOperationalPercent(val);
+                      }
+                    }}
+                    placeholder="0"
+                    className={`font-mono text-sm font-semibold pr-8 ${budgetOperationalPercent > 10 ? 'border-rose-500 focus:ring-rose-500 text-rose-500' : ''}`}
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 font-bold text-xs text-[var(--color-text-tertiary)] pointer-events-none">
+                    %
+                  </span>
+                </div>
+
+                {/* Quick Preset Percentage Chips */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-[var(--color-text-tertiary)] mr-1">Preset:</span>
+                  {[0, 2.5, 5, 7.5, 10].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setBudgetOperationalPercent(pct)}
+                      className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
+                        budgetOperationalPercent === pct
+                          ? 'bg-[var(--color-accent-blue)] text-white border-transparent shadow-xs'
+                          : 'bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-black/5 dark:hover:bg-white/5'
+                      }`}
+                    >
+                      {pct}% {pct === 10 ? '(Maks)' : ''}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Exceeded Warning Alert */}
+                {budgetOperationalPercent > 10 && (
+                  <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-between gap-2 text-xs text-rose-600 dark:text-rose-400">
+                    <span>
+                      ⚠️ Persentase melebihi batas maksimal 10% (Saat ini: {budgetOperationalPercent}%)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setBudgetOperationalPercent(10)}
+                      className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded font-bold text-[11px] shrink-0 cursor-pointer"
+                    >
+                      Setel ke 10%
+                    </button>
+                  </div>
+                )}
+
+                {/* Real-time Nominal Summary Card */}
+                <div className="p-3 rounded-xl bg-black/5 dark:bg-white/5 border border-[var(--color-border)] space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[var(--color-text-secondary)]">Nominal Budget Operasional:</span>
+                    <span className="font-mono font-bold text-[var(--color-accent-blue)] text-sm">
+                      Rp {budgetOtherExpenses.toLocaleString('id-ID')}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-[var(--color-text-tertiary)] truncate">
+                    Terbilang: {formatRupiah(budgetOtherExpenses)}
+                  </div>
+                </div>
               </div>
             </div>
           </Card>
@@ -1053,162 +1244,36 @@ export function NewProjectWizardView() {
           </Card>
         )}
 
-        {/* STEP 6: DRAWING REGISTER REVIEW */}
-        {currentStageName === 'DRAWING_REGISTER' && (
-          <Card className="p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
-              <div>
-                <h3 className="text-base font-bold text-[var(--color-text-primary)] flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-[var(--color-accent-blue)]" />
-                  Drawing Register Review
-                </h3>
-                <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                  Verifikasi nomor lembar gambar, skala CAD, dan PIC drafter yang bertugas.
-                </p>
-              </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  const newIt: DrawingItem = {
-                    id: uuidv4(),
-                    projectId: activeProjectId || '',
-                    groupId: null,
-                    drawingNumber: `DWG-${(drawingItems.length + 1).toString().padStart(3, '0')}`,
-                    drawingName: 'Lembar Gambar Baru',
-                    scale: '1:100',
-                    picId: '',
-                    picName: '',
-                    deadline: null,
-                    status: 'Belum Mulai',
-                    progress: 0,
-                    priority: 'Normal',
-                    notes: '',
-                    revisionCount: 0,
-                    isDeleted: false,
-                    sortOrder: drawingItems.length + 1,
-                    createdBy: appUser?.uid || 'system',
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString()
-                  };
-                  setDrawingItems([...drawingItems, newIt]);
-                }}
-                className="gap-1 text-xs"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Tambah Gambar
-              </Button>
-            </div>
-
-            {drawingItems.length === 0 ? (
-              <div className="p-8 text-center border-2 border-dashed border-[var(--color-border)] rounded-2xl">
-                <FileText className="w-10 h-10 text-[var(--color-text-tertiary)] mx-auto mb-2 opacity-60" />
-                <p className="text-sm font-semibold text-[var(--color-text-primary)]">Belum ada lembar gambar terdaftar</p>
-                <p className="text-xs text-[var(--color-text-secondary)] mt-1 mb-4">
-                  Klik tombol "+ Tambah Gambar" di atas untuk menambahkan lembar kerja CAD.
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto border border-[var(--color-border)] rounded-xl">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-black/5 dark:bg-white/5 border-b border-[var(--color-border)] text-[var(--color-text-secondary)] font-semibold">
-                    <tr>
-                      <th className="p-2.5 w-10 text-center">No</th>
-                      <th className="p-2.5 w-32">Nomor Gambar *</th>
-                      <th className="p-2.5">Nama Gambar</th>
-                      <th className="p-2.5 w-24">Skala</th>
-                      <th className="p-2.5 w-28">Prioritas</th>
-                      <th className="p-2.5 w-12 text-center">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--color-border)]">
-                    {drawingItems.map((item, idx) => (
-                      <tr key={item.id} className="hover:bg-black/5 dark:hover:bg-white/5">
-                        <td className="p-2.5 text-center font-mono text-[var(--color-text-tertiary)]">{idx + 1}</td>
-                        <td className="p-2.5">
-                          <input
-                            type="text"
-                            value={item.drawingNumber}
-                            onChange={(e) => {
-                              const updated = [...drawingItems];
-                              updated[idx].drawingNumber = e.target.value.toUpperCase();
-                              setDrawingItems(updated);
-                            }}
-                            className="w-full px-2 py-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] font-mono uppercase font-bold text-xs"
-                          />
-                        </td>
-                        <td className="p-2.5">
-                          <input
-                            type="text"
-                            value={item.drawingName}
-                            onChange={(e) => {
-                              const updated = [...drawingItems];
-                              updated[idx].drawingName = e.target.value;
-                              setDrawingItems(updated);
-                            }}
-                            className="w-full px-2 py-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] text-xs font-medium"
-                          />
-                        </td>
-                        <td className="p-2.5">
-                          <input
-                            type="text"
-                            value={item.scale}
-                            onChange={(e) => {
-                              const updated = [...drawingItems];
-                              updated[idx].scale = e.target.value;
-                              setDrawingItems(updated);
-                            }}
-                            className="w-full px-2 py-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] text-xs font-mono"
-                          />
-                        </td>
-                        <td className="p-2.5">
-                          <select
-                            value={item.priority}
-                            onChange={(e) => {
-                              const updated = [...drawingItems];
-                              updated[idx].priority = e.target.value as DrawingPriority;
-                              setDrawingItems(updated);
-                            }}
-                            className="w-full px-2 py-1 rounded border border-[var(--color-border)] bg-[var(--color-surface)] text-xs"
-                          >
-                            <option value="Normal">Normal</option>
-                            <option value="Rendah">Rendah</option>
-                            <option value="Tinggi">Tinggi</option>
-                            <option value="Urgent">Urgent</option>
-                          </select>
-                        </td>
-                        <td className="p-2.5 text-center">
-                          <button
-                            type="button"
-                            onClick={() => setDrawingItems(drawingItems.filter((_, i) => i !== idx))}
-                            className="text-rose-500 hover:text-rose-700 p-1"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
-        )}
-
-        {/* STEP 7: COMMERCIAL / QUOTATION */}
+        {/* STEP 6: COMMERCIAL / QUOTATION */}
         {currentStageName === 'COMMERCIAL_SETUP' && (
           <Card className="p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--color-border)] pb-3">
               <div>
                 <h3 className="text-base font-bold text-[var(--color-text-primary)] flex items-center gap-2">
                   <DollarSign className="w-4 h-4 text-[var(--color-accent-blue)]" />
                   RAB / Quotation Komersial Resmi
                 </h3>
                 <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                  Dihitung menggunakan canonical financial engine dengan kepatuhan Safe Integer IDR.
+                  Deskripsi pekerjaan otomatis terisi sesuai bidang pekerjaan terpilih: <span className="font-semibold text-[var(--color-text-primary)]">{projectType || 'Arsitektur'}</span>.
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button 
+                  type="button"
+                  variant="secondary" 
+                  size="sm" 
+                  onClick={() => {
+                    const synced = generateQuotationItemsFromProjectType(projectType, contractValue);
+                    setQuotationItems(synced);
+                    setHasUserEditedQuotation(false);
+                    toast.success(`Deskripsi pekerjaan disinkronkan dengan bidang (${projectType || 'Arsitektur'}) & nilai kontrak.`);
+                  }}
+                  className="text-xs gap-1.5 h-8 bg-blue-500/10 hover:bg-blue-500/20 text-[var(--color-accent-blue)] border-blue-500/30 font-semibold"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Muat Ulang dari Bidang
+                </Button>
+
                 <Badge variant={quotationStatus === 'Approved' ? 'success' : 'info'} className="text-xs">
                   Status: {quotationStatus}
                 </Badge>
@@ -1229,7 +1294,7 @@ export function NewProjectWizardView() {
             </div>
 
             {/* Quotation Table */}
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="overflow-x-auto border border-[var(--color-border)] rounded-xl">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-black/5 dark:bg-white/5 border-b border-[var(--color-border)] font-semibold">
@@ -1252,6 +1317,7 @@ export function NewProjectWizardView() {
                               const updated = [...quotationItems];
                               updated[idx].description = e.target.value;
                               setQuotationItems(updated);
+                              setHasUserEditedQuotation(true);
                             }}
                             className="w-full p-1.5 rounded border border-[var(--color-border)] bg-[var(--color-surface)] text-xs font-medium"
                           />
@@ -1265,6 +1331,7 @@ export function NewProjectWizardView() {
                               const updated = [...quotationItems];
                               updated[idx].quantity = Math.max(1, Number(e.target.value));
                               setQuotationItems(updated);
+                              setHasUserEditedQuotation(true);
                             }}
                             className="w-full p-1.5 rounded border border-[var(--color-border)] bg-[var(--color-surface)] text-xs text-center"
                           />
@@ -1276,6 +1343,7 @@ export function NewProjectWizardView() {
                               const updated = [...quotationItems];
                               updated[idx].unit = e.target.value;
                               setQuotationItems(updated);
+                              setHasUserEditedQuotation(true);
                             }}
                             className="w-full p-1.5 rounded border border-[var(--color-border)] bg-[var(--color-surface)] text-xs"
                           />
@@ -1289,6 +1357,7 @@ export function NewProjectWizardView() {
                               const updated = [...quotationItems];
                               updated[idx].unitPrice = normalizeMoney(e.target.value);
                               setQuotationItems(updated);
+                              setHasUserEditedQuotation(true);
                             }}
                             className="w-full p-1.5 rounded border border-[var(--color-border)] bg-[var(--color-surface)] text-xs font-mono"
                           />
@@ -1299,8 +1368,12 @@ export function NewProjectWizardView() {
                         <td className="p-2 text-center">
                           <button
                             type="button"
-                            onClick={() => setQuotationItems(quotationItems.filter((_, i) => i !== idx))}
-                            className="text-rose-500 hover:text-rose-700"
+                            onClick={() => {
+                              setQuotationItems(quotationItems.filter((_, i) => i !== idx));
+                              setHasUserEditedQuotation(true);
+                            }}
+                            className="text-rose-500 hover:text-rose-700 cursor-pointer p-1"
+                            title="Hapus baris"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1311,20 +1384,61 @@ export function NewProjectWizardView() {
                 </table>
               </div>
 
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setQuotationItems([
-                    ...quotationItems,
-                    { id: uuidv4(), description: 'Item Pekerjaan Tambahan', quantity: 1, unit: 'Lembar', unitPrice: 0 }
-                  ]);
-                }}
-                className="text-xs gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Tambah Rincian Item
-              </Button>
+              {/* Actions & Quick Add Disciplines */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setQuotationItems([
+                        ...quotationItems,
+                        { id: uuidv4(), description: 'Item Pekerjaan Tambahan', quantity: 1, unit: 'Paket', unitPrice: 0 }
+                      ]);
+                      setHasUserEditedQuotation(true);
+                    }}
+                    className="text-xs gap-1 h-7"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Tambah Item Manual
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1">
+                  <span className="text-[11px] text-[var(--color-text-tertiary)] mr-1">Tambah Bidang:</span>
+                  {[
+                    { id: 'Arsitektur', label: '+ DED Arsitektur' },
+                    { id: 'Struktur', label: '+ DED Struktur' },
+                    { id: 'MEP', label: '+ DED MEP' },
+                    { id: 'Interior', label: '+ Interior' },
+                    { id: 'Masterplan', label: '+ Masterplan' },
+                    { id: 'Infrastruktur', label: '+ Infrastruktur' },
+                    { id: 'QS', label: '+ QS & RAB' },
+                  ].map(b => (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => {
+                        setQuotationItems([
+                          ...quotationItems,
+                          { 
+                            id: uuidv4(), 
+                            description: DISCIPLINE_NAME_MAP[b.id] || `Jasa Pembuatan Gambar DED ${b.id}`, 
+                            quantity: 1, 
+                            unit: 'Paket', 
+                            unitPrice: 0 
+                          }
+                        ]);
+                        setHasUserEditedQuotation(true);
+                      }}
+                      className="px-2 py-0.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] hover:bg-black/5 dark:hover:bg-white/5 text-[10px] font-semibold text-[var(--color-text-secondary)] transition-all cursor-pointer"
+                    >
+                      {b.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Quotation Summary Card */}
@@ -1363,7 +1477,7 @@ export function NewProjectWizardView() {
         {/* STEP 8: PAYMENT TERMS */}
         {currentStageName === 'FINANCIAL_SETUP' && (
           <Card className="p-6 space-y-5">
-            <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--color-border)] pb-3">
               <div>
                 <h3 className="text-base font-bold text-[var(--color-text-primary)] flex items-center gap-2">
                   <Calculator className="w-4 h-4 text-[var(--color-accent-blue)]" />
@@ -1383,6 +1497,23 @@ export function NewProjectWizardView() {
                   </Badge>
                 );
               })()}
+            </div>
+
+            {/* Contract Value Reference Banner */}
+            <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <span className="text-xs font-semibold text-[var(--color-text-secondary)]">
+                  Total Nilai Kontrak Acuan:
+                </span>
+                <div className="text-base font-bold font-mono text-[var(--color-accent-blue)]">
+                  {formatRupiah(effectiveContractValue)}
+                </div>
+              </div>
+              <Badge variant="info" className="text-[11px] self-start sm:self-auto">
+                {calculatedQuotation.grandTotal > 0 
+                  ? 'Tersinkronisasi dari RAB / Quotation (Tahap 6)' 
+                  : 'Estimasi Nilai Kontrak (Tahap 3)'}
+              </Badge>
             </div>
 
             <div className="space-y-3">
@@ -1420,14 +1551,15 @@ export function NewProjectWizardView() {
                       <span className="font-bold">%</span>
                     </div>
 
-                    <span className="font-mono font-semibold text-[var(--color-text-secondary)] min-w-[120px] text-right">
-                      {formatRupiah((contractValue * (term.percentageValue || 0)) / 100)}
+                    <span className="font-mono font-semibold text-[var(--color-text-secondary)] min-w-[140px] text-right">
+                      {formatRupiah((effectiveContractValue * (term.percentageValue || 0)) / 100)}
                     </span>
 
                     <button
                       type="button"
                       onClick={() => setFinanceTerms(financeTerms.filter((_, i) => i !== idx))}
-                      className="text-rose-500 hover:text-rose-700 p-1"
+                      className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
+                      title="Hapus Termin"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -1435,30 +1567,39 @@ export function NewProjectWizardView() {
                 </div>
               ))}
 
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setFinanceTerms([
-                    ...financeTerms,
-                    {
-                      id: uuidv4(),
-                      projectId: activeProjectId || '',
-                      termName: `Termin Tambahan ${financeTerms.length + 1}`,
-                      triggerType: 'On Drawing Progress',
-                      amountType: 'Percentage',
-                      percentageValue: 0,
-                      sortOrder: financeTerms.length + 1,
-                      createdAt: '',
-                      updatedAt: ''
-                    }
-                  ]);
-                }}
-                className="text-xs gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Tambah Termin Penagihan
-              </Button>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-[var(--color-border)]">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setFinanceTerms([
+                      ...financeTerms,
+                      {
+                        id: uuidv4(),
+                        projectId: activeProjectId || '',
+                        termName: `Termin Tambahan ${financeTerms.length + 1}`,
+                        triggerType: 'On Drawing Progress',
+                        amountType: 'Percentage',
+                        percentageValue: 0,
+                        sortOrder: financeTerms.length + 1,
+                        createdAt: '',
+                        updatedAt: ''
+                      }
+                    ]);
+                  }}
+                  className="text-xs gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Tambah Termin Penagihan
+                </Button>
+
+                <div className="text-xs text-right font-mono">
+                  <span className="text-[var(--color-text-secondary)] mr-2">Total Terjadwal:</span>
+                  <span className="font-bold text-[var(--color-text-primary)]">
+                    {formatRupiah(financeTerms.reduce((acc, t) => acc + ((effectiveContractValue * (t.percentageValue || 0)) / 100), 0))}
+                  </span>
+                </div>
+              </div>
             </div>
           </Card>
         )}

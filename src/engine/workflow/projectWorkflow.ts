@@ -95,98 +95,98 @@ export const CANONICAL_WORKFLOW_STAGES: Record<CanonicalWorkflowStage, WorkflowS
     id: "DRAWING_REGISTER",
     label: "Drawing Register Review",
     order: 6,
-    required: true,
-    stepNumber: 6,
-    isWizardStep: true,
+    required: false,
+    stepNumber: 0,
+    isWizardStep: false,
     description: "Verifikasi nomor gambar standar CAD, skala gambar, prioritas, dan PIC."
   },
   COMMERCIAL_SETUP: {
     id: "COMMERCIAL_SETUP",
     label: "Komersial & Quotation",
-    order: 7,
+    order: 6,
     required: true,
-    stepNumber: 7,
+    stepNumber: 6,
     isWizardStep: true,
     description: "Penyusunan Rencana Anggaran Biaya (RAB) / Quotation resmi dan status approval."
   },
   VENDOR_SETUP: {
     id: "VENDOR_SETUP",
     label: "Setup Vendor & Subkon",
-    order: 8,
+    order: 7,
     required: false,
-    stepNumber: 8,
+    stepNumber: 7,
     isWizardStep: true,
     description: "Penugasan vendor outsource/lab (opsional jika seluruh pekerjaan internal)."
   },
   FINANCIAL_SETUP: {
     id: "FINANCIAL_SETUP",
     label: "Setup Termin & Keuangan",
-    order: 9,
+    order: 8,
     required: true,
-    stepNumber: 9,
+    stepNumber: 8,
     isWizardStep: true,
     description: "Termin pembayaran klien (total 100%) dan alokasi budget operasional."
   },
   PRE_FLIGHT: {
     id: "PRE_FLIGHT",
     label: "Pre-Flight Inspection",
-    order: 10,
+    order: 9,
     required: true,
-    stepNumber: 10,
+    stepNumber: 9,
     isWizardStep: true,
     description: "Pemeriksaan integritas sistem sebelum proyek diizinkan aktif secara hukum."
   },
   ACTIVE: {
     id: "ACTIVE",
     label: "Aktivasi & Operasi",
-    order: 11,
+    order: 10,
     required: true,
-    stepNumber: 11,
+    stepNumber: 10,
     isWizardStep: true,
     description: "Proyek resmi berjalan, nomor dokumen terkunci, komitmen finansial aktif."
   },
   ON_HOLD: {
     id: "ON_HOLD",
     label: "Tertunda (On Hold)",
-    order: 12,
+    order: 11,
     required: false,
-    stepNumber: 12,
+    stepNumber: 11,
     isWizardStep: false,
     description: "Proyek dijeda sementara atas permintaan klien atau kendala lapangan."
   },
   OPERATIONS: {
     id: "OPERATIONS",
     label: "Operasional Penuh",
-    order: 13,
+    order: 12,
     required: false,
-    stepNumber: 13,
+    stepNumber: 12,
     isWizardStep: false,
     description: "Fase eksekusi gambar, transmittal, penagihan invoice, dan pembayaran vendor."
   },
   CLOSING: {
     id: "CLOSING",
     label: "Penyelesaian Akhir",
-    order: 14,
+    order: 13,
     required: false,
-    stepNumber: 14,
+    stepNumber: 13,
     isWizardStep: false,
     description: "As-built drawing lengkap, seluruh invoice terbayar, audit rekonsiliasi final."
   },
   COMPLETED: {
     id: "COMPLETED",
     label: "Proyek Selesai",
-    order: 15,
+    order: 14,
     required: false,
-    stepNumber: 15,
+    stepNumber: 14,
     isWizardStep: false,
     description: "Proyek ditutup permanen dengan rekam jejak keuangan dan drawing aman."
   },
   CANCELLED: {
     id: "CANCELLED",
     label: "Dibatalkan",
-    order: 16,
+    order: 15,
     required: false,
-    stepNumber: 16,
+    stepNumber: 15,
     isWizardStep: false,
     description: "Proyek dibatalkan secara resmi dengan audit log alasan pembatalan."
   },
@@ -198,7 +198,6 @@ export const WIZARD_ORDERED_STAGES: CanonicalWorkflowStage[] = [
   "TIMELINE_COMMERCIAL",
   "DRAWING_SETUP",
   "TEAM_SETUP",
-  "DRAWING_REGISTER",
   "COMMERCIAL_SETUP",
   "VENDOR_SETUP",
   "FINANCIAL_SETUP",
@@ -312,8 +311,13 @@ export function validateWorkflowStage(
       if (typeof p.contractValue !== "number" || p.contractValue < 0 || isNaN(p.contractValue)) {
         errors.push("Nilai kontrak harus bernilai angka positif atau nol.");
       }
-      if (typeof p.budgetOtherExpenses === "number" && p.budgetOtherExpenses < 0) {
-        errors.push("Budget operasional tidak boleh bernilai negatif.");
+      if (typeof p.budgetOtherExpenses === "number") {
+        if (p.budgetOtherExpenses < 0) {
+          errors.push("Budget operasional tidak boleh bernilai negatif.");
+        }
+        if (p.contractValue && p.contractValue > 0 && p.budgetOtherExpenses > p.contractValue * 0.1) {
+          errors.push(`Alokasi budget operasional maksimal 10% dari estimasi nilai kontrak (Maksimal: Rp ${Math.round(p.contractValue * 0.1).toLocaleString('id-ID')}).`);
+        }
       }
       break;
     }
@@ -518,11 +522,12 @@ export function evaluatePreFlightInspection(context: ProjectWorkflowContext): Pr
     stageToJump: "TEAM_SETUP"
   });
 
-  // 6. Drawing Register
-  const hasDrawings = drwItems.length > 0;
+  // 6. Drawing Register (Opsional saat pendaftaran - dinamis saat proyek berjalan)
   const noDuplicateDrawings = (() => {
+    if (drwItems.length === 0) return true;
     const s = new Set<string>();
     for (const item of drwItems) {
+      if (!item.drawingNumber) continue;
       const code = item.drawingNumber.trim().toUpperCase();
       if (s.has(code)) return false;
       s.add(code);
@@ -532,16 +537,14 @@ export function evaluatePreFlightInspection(context: ProjectWorkflowContext): Pr
   items.push({
     id: "check_drawings",
     category: "DRAWINGS",
-    label: "Drawing Register & Nomor Unik CAD",
-    isReady: hasDrawings && noDuplicateDrawings,
-    isRequired: true,
-    reasonIfBlocked: !hasDrawings 
-      ? "Belum ada item lembar gambar yang didaftarkan." 
-      : !noDuplicateDrawings 
+    label: "Drawing Register & Nomor CAD",
+    isReady: noDuplicateDrawings,
+    isRequired: false,
+    reasonIfBlocked: !noDuplicateDrawings 
       ? "Terdapat nomor lembar gambar duplikat pada drawing register." 
       : undefined,
-    remedyAction: "Tinjau dan sesuaikan daftar gambar di Step 6.",
-    stageToJump: "DRAWING_REGISTER"
+    remedyAction: "Daftar gambar dapat dikelola secara dinamis di modul Master Drawing.",
+    stageToJump: "DRAWING_SETUP"
   });
 
   // 7. Finance Terms Coherence
@@ -555,7 +558,7 @@ export function evaluatePreFlightInspection(context: ProjectWorkflowContext): Pr
     isReady: termsTotal100,
     isRequired: true,
     reasonIfBlocked: !termsTotal100 ? "Total persentase termin pembayaran tidak sama dengan 100%." : undefined,
-    remedyAction: "Sesuaikan persentase termin pembayaran di Step 9.",
+    remedyAction: "Sesuaikan persentase termin pembayaran di Step 8.",
     stageToJump: "FINANCIAL_SETUP"
   });
 
