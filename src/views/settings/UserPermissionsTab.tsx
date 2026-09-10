@@ -7,7 +7,7 @@ import { Card, Button, Badge, Modal, Input } from '../../components/ui';
 import { 
   Users, ShieldCheck, Check, X, Lock, 
   AlertTriangle, Save, RefreshCw, Key, UserCheck, 
-  UserX, ShieldAlert, Sparkles
+  UserX, ShieldAlert, Sparkles, UserPlus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -191,6 +191,27 @@ export function UserPermissionsTab() {
 
     const nextState = !(targetUser.isActive !== false);
     try {
+      // Sync claims via server if possible
+      const token = await auth.currentUser?.getIdToken();
+      if (token && isOwner) {
+        try {
+          await fetch('/api/admin/set-user-claim', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              targetUid: targetId,
+              role: targetUser.role,
+              isActive: nextState,
+            }),
+          });
+        } catch (claimsErr) {
+          console.warn('Set claim error during toggle:', claimsErr);
+        }
+      }
+
       await updateDoc(doc(db, 'users', targetId), {
         isActive: nextState,
         updatedAt: new Date().toISOString(),
@@ -228,13 +249,14 @@ export function UserPermissionsTab() {
                 variant="secondary"
                 size="sm"
                 onClick={() => {
-                  setNewUserName('Drafter Budi (Test TEAM)');
-                  setNewUserEmail(`drafter.${Date.now().toString().slice(-4)}@mdrawing.local`);
+                  setNewUserName('');
+                  setNewUserEmail('');
                   setNewUserRole('TEAM');
                   setIsCreatingTestUser(true);
                 }}
               >
-                + Tambah Akun Uji Coba
+                <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+                + Daftarkan Pengguna / Tim
               </Button>
 
               <Button
@@ -268,7 +290,7 @@ export function UserPermissionsTab() {
                 <th className="py-3 px-4 font-semibold">Peran Kanonik</th>
                 <th className="py-3 px-4 font-semibold">Status Akun</th>
                 <th className="py-3 px-4 font-semibold">Ringkasan Hak Akses</th>
-                <th className="py-3 px-4 font-semibold text-center">Aksi Otorisasi</th>
+                <th className="py-3 px-4 font-semibold text-right pr-6">Aksi Otorisasi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-border)]">
@@ -347,44 +369,46 @@ export function UserPermissionsTab() {
                       </td>
 
                       {/* Action buttons */}
-                      <td className="py-3 px-4 whitespace-nowrap text-center space-x-2">
-                        {isOwner && (
-                          <Button
-                            variant={simulatedRole === u.role ? 'primary' : 'ghost'}
-                            size="sm"
-                            title={`Simulasikan tampilan aplikasi sebagai ${u.role}`}
-                            onClick={() => {
-                              if (simulatedRole === u.role) {
-                                setSimulatedRole(null);
-                              } else {
-                                setSimulatedRole(u.role || 'VIEWER');
-                              }
-                            }}
-                          >
-                            <Sparkles className="w-3.5 h-3.5 mr-1" />
-                            {simulatedRole === u.role ? 'Sedang Diuji' : 'Uji Peran'}
-                          </Button>
-                        )}
+                      <td className="py-3 px-4 whitespace-nowrap text-right pr-6">
+                        <div className="inline-flex items-center justify-end gap-2">
+                          {isOwner && (
+                            <Button
+                              variant={simulatedRole === u.role ? 'primary' : 'ghost'}
+                              size="sm"
+                              title={`Simulasikan tampilan aplikasi sebagai ${u.role}`}
+                              onClick={() => {
+                                if (simulatedRole === u.role) {
+                                  setSimulatedRole(null);
+                                } else {
+                                  setSimulatedRole(u.role || 'VIEWER');
+                                }
+                              }}
+                            >
+                              <Sparkles className="w-3.5 h-3.5 mr-1" />
+                              {simulatedRole === u.role ? 'Sedang Diuji' : 'Uji Peran'}
+                            </Button>
+                          )}
 
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => handleOpenEdit(u)}
-                          disabled={!isOwner && !isAdmin}
-                        >
-                          <Key className="w-3.5 h-3.5 mr-1" />
-                          Atur Otorisasi
-                        </Button>
-
-                        {!isSelf && (isOwner || (isAdmin && !userIsOwner)) && (
                           <Button
-                            variant={isActive ? 'danger' : 'secondary'}
+                            variant="secondary"
                             size="sm"
-                            onClick={() => handleToggleUserActive(u)}
+                            onClick={() => handleOpenEdit(u)}
+                            disabled={!isOwner && !isAdmin}
                           >
-                            {isActive ? 'Nonaktifkan' : 'Aktifkan'}
+                            <Key className="w-3.5 h-3.5 mr-1" />
+                            Atur Otorisasi
                           </Button>
-                        )}
+
+                          {!isSelf && (isOwner || (isAdmin && !userIsOwner)) && (
+                            <Button
+                              variant={isActive ? 'danger' : 'secondary'}
+                              size="sm"
+                              onClick={() => handleToggleUserActive(u)}
+                            >
+                              {isActive ? 'Nonaktifkan' : 'Aktifkan'}
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -546,12 +570,12 @@ export function UserPermissionsTab() {
         </Modal>
       )}
 
-      {/* Modal Buat Akun Uji Coba */}
+      {/* Modal Daftarkan Pengguna / Tim */}
       {isCreatingTestUser && (
         <Modal
           isOpen={true}
           onClose={() => setIsCreatingTestUser(false)}
-          title="Buat Akun Uji Coba (Test User)"
+          title="Daftarkan Pengguna / Anggota Tim Baru"
         >
           <form
             onSubmit={async (e) => {
@@ -571,19 +595,19 @@ export function UserPermissionsTab() {
                   },
                   body: JSON.stringify({
                     name: newUserName.trim(),
-                    email: newUserEmail.trim(),
+                    email: newUserEmail.trim().toLowerCase(),
                     role: newUserRole,
                   }),
                 });
                 const data = await res.json();
                 if (res.ok) {
-                  toast.success(`Akun uji coba '${newUserName}' (${newUserRole}) berhasil dibuat!`);
+                  toast.success(`Akun '${newUserName}' (${newUserRole}) berhasil didaftarkan dan aktif!`);
                   setIsCreatingTestUser(false);
                 } else {
-                  toast.error(data.error || 'Gagal membuat akun uji coba.');
+                  toast.error(data.error || 'Gagal mendaftarkan pengguna.');
                 }
               } catch (err: any) {
-                toast.error('Gagal membuat akun uji coba: ' + err.message);
+                toast.error('Gagal mendaftarkan pengguna: ' + err.message);
               } finally {
                 setCreatingUser(false);
               }
@@ -591,7 +615,7 @@ export function UserPermissionsTab() {
             className="space-y-4"
           >
             <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs text-blue-700 dark:text-blue-300">
-              Akun uji coba akan didaftarkan ke koleksi pengguna Firestore dengan peran kanonik yang dipilih untuk memvalidasi batasan hak akses sistem.
+              Pengguna yang didaftarkan di sini akan langsung berstatus <strong>Aktif</strong>. Saat mereka masuk menggunakan akun Google dengan email ini, sistem akan otomatis menautkan hak akses sesuai peran kanonik yang ditentukan.
             </div>
 
             <div className="space-y-1">
@@ -599,18 +623,18 @@ export function UserPermissionsTab() {
               <Input
                 value={newUserName}
                 onChange={(e) => setNewUserName(e.target.value)}
-                placeholder="Contoh: Drafter Budi (Test TEAM)"
+                placeholder="Contoh: Budi Santoso (Drafter)"
                 required
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-sm font-medium text-[var(--color-text-primary)]">Email Pengguna *</label>
+              <label className="text-sm font-medium text-[var(--color-text-primary)]">Email Pengguna (Google) *</label>
               <Input
                 type="email"
                 value={newUserEmail}
                 onChange={(e) => setNewUserEmail(e.target.value)}
-                placeholder="Contoh: drafter.budi@mdrawing.local"
+                placeholder="Contoh: budi.drafter@gmail.com"
                 required
               />
             </div>
@@ -636,13 +660,11 @@ export function UserPermissionsTab() {
               </Button>
               <Button type="submit" disabled={creatingUser}>
                 {creatingUser ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" />
-                    Membuat...
-                  </>
+                  <RefreshCw className="w-4 h-4 animate-spin mr-1.5" />
                 ) : (
-                  'Buat Akun'
+                  <UserPlus className="w-4 h-4 mr-1.5" />
                 )}
+                Daftarkan Pengguna
               </Button>
             </div>
           </form>

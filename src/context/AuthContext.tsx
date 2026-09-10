@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userDocRef = doc(db, "users", firebaseUser.uid);
       unsubUser = onSnapshot(userDocRef, async (docSnap) => {
         if (!docSnap.exists()) {
-          // Document does not exist yet. Delegate bootstrap to server:
+          // Document does not exist yet. Delegate bootstrap and account linking to server:
           try {
             const idToken = await firebaseUser.getIdToken();
             const response = await fetch("/api/auth/bootstrap-check-owner", {
@@ -102,9 +102,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             if (response.ok) {
               const data = await response.json();
-              if (data.bootstrapped && data.role === "OWNER") {
+              if (data.bootstrapped) {
                 // Force token refresh to pick up official Custom Claims set by Admin SDK
                 await firebaseUser.getIdToken(true);
+                // Server wrote the canonical active user doc to Firestore. Return early and let onSnapshot pick it up.
                 return;
               }
             }
@@ -112,11 +113,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.error("[AUTH] Error calling bootstrap endpoint:", bootErr);
           }
 
-          // If not bootstrapped by server, register as standard VIEWER (pending admin activation)
+          // If not bootstrapped/linked by server, register as standard VIEWER (pending admin activation)
           // Allowed by firestore.rules: incoming().role == "VIEWER" && incoming().isActive == false
           const standardViewer: Partial<AppUser> = {
             uid: firebaseUser.uid,
-            email: firebaseUser.email || "",
+            email: (firebaseUser.email || "").toLowerCase(),
             name: firebaseUser.displayName || "Pengguna Baru",
             role: "VIEWER",
             isActive: false,
@@ -133,13 +134,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const userData = docSnap.data() as AppUser;
           setAppUser(userData);
 
-          // Real-time deactivation check (with deduplicated single toast alert)
+          // Real-time deactivation check with server re-sync verification
           if (!userData.isActive && userData.role !== "OWNER") {
-            if (!hasAlertedDeactivation) {
-              hasAlertedDeactivation = true;
-              toast.error("Akun Anda telah dinonaktifkan.", { id: "account-deactivated-toast" });
+            // Attempt self-healing re-sync with server (e.g. if Owner pre-registered or activated the email)
+            let resynced = false;
+            try {
+              const idToken = await firebaseUser.getIdToken();
+              const response = await fetch("/api/auth/bootstrap-check-owner", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${idToken}`,
+                },
+                body: JSON.stringify({ token: idToken }),
+              });
+              if (response.ok) {
+                const data = await response.json();
+                if (data.bootstrapped && data.isActive) {
+                  await firebaseUser.getIdToken(true);
+                  resynced = true;
+                  return; // Successfully linked and activated, do NOT sign out!
+                }
+              }
+            } catch (syncErr) {
+              console.warn("[AUTH] Resync attempt error:", syncErr);
             }
-            await auth.signOut();
+
+            if (!resynced) {
+              if (!hasAlertedDeactivation) {
+                hasAlertedDeactivation = true;
+                toast.error("Akun Anda saat ini belum aktif atau belum disetujui Administrator.", { id: "account-deactivated-toast" });
+              }
+              await auth.signOut();
+            }
           }
 
           // Sync theme preference if exists

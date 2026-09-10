@@ -204,7 +204,7 @@ export function SettingsView() {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 w-full max-w-[1400px] mx-auto">
       {/* Header & Personal Profile Card */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
         <div>

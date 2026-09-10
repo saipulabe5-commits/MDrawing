@@ -83,7 +83,13 @@ service cloud.firestore {
     function isAssignedToProject(projId) {
       let userDoc = getUserDoc();
       let assigned = userDoc.get('assignedProjectIds', []);
-      return projId != null && projId in assigned;
+      return (projId != null && projId in assigned)
+        || (projId != null && exists(/databases/$(database)/documents/projects/$(projId)) && (
+          get(/databases/$(database)/documents/projects/$(projId)).data.get('projectLeaderId', '') == request.auth.uid
+          || (request.auth.token.email != null && get(/databases/$(database)/documents/projects/$(projId)).data.get('projectLeaderEmail', '') == request.auth.token.email)
+          || (request.auth.token.email != null && get(/databases/$(database)/documents/projects/$(projId)).data.get('members', []).hasAny([request.auth.uid, request.auth.token.email]))
+          || get(/databases/$(database)/documents/projects/$(projId)).data.get('members', []).hasAny([request.auth.uid])
+        ));
     }
 
     function canAccessProjectForRead(projId) {

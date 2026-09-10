@@ -991,8 +991,122 @@ async function startServer() {
       const hasActiveOwner = !ownersSnap.empty;
       const activeOwnerUid = hasActiveOwner ? ownersSnap.docs[0].id : null;
 
-      // If an active owner already exists and it is NOT this user, bootstrap is not allowed
+      // If an active owner already exists and it is NOT this user, check if this user is a pre-registered team member by Owner
       if (hasActiveOwner && activeOwnerUid !== uid) {
+        // Query users collection to find if this email was pre-registered or invited by Owner
+        const emailQuerySnap = await adminDb
+          .collection("users")
+          .where("email", "==", email)
+          .get();
+
+        let preRegisteredDoc = !emailQuerySnap.empty ? emailQuerySnap.docs[0] : null;
+
+        // If not found with exact case, check case-insensitive across users
+        if (!preRegisteredDoc) {
+          const allUsersSnap = await adminDb.collection("users").limit(100).get();
+          for (const d of allUsersSnap.docs) {
+            const docEmail = (d.data()?.email || "").toLowerCase().trim();
+            if (docEmail === email) {
+              preRegisteredDoc = d;
+              break;
+            }
+          }
+        }
+
+        if (preRegisteredDoc) {
+          const preData = preRegisteredDoc.data() || {};
+          const assignedRole = preData.role || "TEAM";
+          const isActive = preData.isActive !== false;
+
+          const teamCapabilities = {
+            role: assignedRole,
+            canViewFinance: preData.canViewFinance === true,
+            canEditFinance: preData.canEditFinance === true,
+            canApproveFinance: preData.canApproveFinance === true,
+            canExportFinanceReport: preData.canExportFinanceReport === true,
+            canVoidFinanceTransaction: preData.canVoidFinanceTransaction === true,
+            canEditPaidTransaction: preData.canEditPaidTransaction === true,
+            canViewVendorCost: preData.canViewVendorCost === true,
+            canViewVendorPayment: preData.canViewVendorPayment === true,
+            canManageTransmittal: preData.canManageTransmittal === true,
+          };
+
+          // 1. Set Custom Claims in Firebase Auth via Admin SDK
+          try {
+            await authInstance.setCustomUserClaims(uid, teamCapabilities);
+            console.log(`[BOOTSTRAP TEAM SUCCESS] setCustomUserClaims applied role: ${assignedRole} to UID: ${uid} (${email})`);
+          } catch (claimsErr: any) {
+            console.warn(`[BOOTSTRAP TEAM CLAIMS WARN]`, claimsErr.message);
+          }
+
+          // 2. Write / upsert canonical user doc for this real UID
+          const userRef = adminDb.collection("users").doc(uid);
+          const nowIso = new Date().toISOString();
+
+          const syncedUserData = {
+            ...preData,
+            uid,
+            email,
+            name: decodedToken.name || preData.name || "Anggota Tim",
+            role: assignedRole,
+            isActive: isActive,
+            ...teamCapabilities,
+            assignedProjectIds: preData.assignedProjectIds || [],
+            createdAt: preData.createdAt || nowIso,
+            updatedAt: nowIso,
+          };
+
+          await userRef.set(syncedUserData, { merge: true });
+
+          // 3. Clean up temporary placeholder doc if UID was a placeholder (e.g. team_test_*)
+          if (preRegisteredDoc.id !== uid) {
+            try {
+              await adminDb.collection("users").doc(preRegisteredDoc.id).delete();
+              console.log(`[BOOTSTRAP CLEANUP] Deleted temporary placeholder doc: ${preRegisteredDoc.id}`);
+            } catch (delErr: any) {
+              console.warn("[BOOTSTRAP CLEANUP WARN]", delErr.message);
+            }
+          }
+
+          return res.status(200).json({
+            success: true,
+            bootstrapped: true,
+            role: assignedRole,
+            isActive: isActive,
+            message: `Akun tim (${assignedRole}) berhasil disinkronkan dan diaktifkan.`,
+          });
+        }
+
+        // Also check if current UID doc already exists and was activated by Owner
+        const directDoc = await adminDb.collection("users").doc(uid).get();
+        if (directDoc.exists) {
+          const directData = directDoc.data() || {};
+          if (directData.isActive === true) {
+            const userRole = directData.role || "VIEWER";
+            try {
+              await authInstance.setCustomUserClaims(uid, {
+                role: userRole,
+                canViewFinance: directData.canViewFinance === true,
+                canEditFinance: directData.canEditFinance === true,
+                canApproveFinance: directData.canApproveFinance === true,
+                canViewVendorCost: directData.canViewVendorCost === true,
+                canViewVendorPayment: directData.canViewVendorPayment === true,
+                canManageTransmittal: directData.canManageTransmittal === true,
+              });
+            } catch (err: any) {
+              console.warn("[DIRECT USER CLAIMS WARN]", err.message);
+            }
+
+            return res.status(200).json({
+              success: true,
+              bootstrapped: true,
+              role: userRole,
+              isActive: true,
+              message: `Akun aktif (${userRole}) berhasil diverifikasi.`,
+            });
+          }
+        }
+
         return res.status(200).json({
           success: true,
           bootstrapped: false,
@@ -1473,33 +1587,60 @@ async function startServer() {
       return res.status(400).json({ error: "Parameter 'name', 'email', dan 'role' wajib diisi." });
     }
 
-    try {
-      const targetUid = "team_test_" + Math.random().toString(36).substring(2, 10);
-      const authInstance = getAuth(firebaseAdminApp || undefined);
+    const cleanEmail = String(email).trim().toLowerCase();
 
+    try {
+      const authInstance = getAuth(firebaseAdminApp || undefined);
+      let targetUid = "";
+
+      // 1. Check if Firebase Auth already has a user with this email (e.g. they logged in before with Google)
       try {
-        await authInstance.createUser({
-          uid: targetUid,
-          email,
-          displayName: name,
-        });
-        await authInstance.setCustomUserClaims(targetUid, { role, ...(capabilities || {}) });
+        const existingAuthUser = await authInstance.getUserByEmail(cleanEmail);
+        if (existingAuthUser && existingAuthUser.uid) {
+          targetUid = existingAuthUser.uid;
+          console.log(`[ADMIN REGISTER] Found existing Firebase Auth user for ${cleanEmail} with UID: ${targetUid}`);
+        }
+      } catch (notFound) {
+        // User has not logged in yet via Firebase
+      }
+
+      // 2. If not found in Auth, check if Firestore already has a doc for this email
+      if (!targetUid && adminDb) {
+        const existingDocs = await adminDb.collection("users").where("email", "==", cleanEmail).get();
+        if (!existingDocs.empty) {
+          targetUid = existingDocs.docs[0].id;
+        }
+      }
+
+      // 3. If still not found, generate clean placeholder UID for pre-registration
+      if (!targetUid) {
+        targetUid = "team_" + Math.random().toString(36).substring(2, 10);
+      }
+
+      const teamCapabilities = {
+        role,
+        ...(capabilities || {}),
+      };
+
+      // Try setting custom claims if user exists in Firebase Auth
+      try {
+        await authInstance.setCustomUserClaims(targetUid, teamCapabilities);
       } catch (authErr: any) {
-        console.warn("[ADMIN CREATE USER AUTH WARN]", authErr.message);
+        console.log(`[ADMIN REGISTER CLAIMS DEFERRED] Claims will be applied on first login:`, authErr.message);
       }
 
       if (adminDb) {
         const userDoc = {
           uid: targetUid,
-          name,
-          email,
+          name: String(name).trim(),
+          email: cleanEmail,
           role,
           isActive: true,
           ...(capabilities || {}),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
-        await adminDb.collection("users").doc(targetUid).set(userDoc);
+        await adminDb.collection("users").doc(targetUid).set(userDoc, { merge: true });
 
         await adminDb.collection("activityLogs").add({
           entityType: "USER",
@@ -1508,15 +1649,15 @@ async function startServer() {
           userId: user.uid,
           userName: user.email,
           userRole: user.role,
-          details: `Owner/Admin ${user.email} membuat akun uji coba '${name}' dengan peran ${role}.`,
+          details: `Owner/Admin ${user.email} mendaftarkan akun '${name}' (${cleanEmail}) dengan peran ${role} dan status aktif.`,
           createdAt: new Date().toISOString(),
         });
       }
 
       return res.status(200).json({
         success: true,
-        message: `Akun uji coba '${name}' (${role}) berhasil dibuat.`,
-        user: { uid: targetUid, name, email, role },
+        message: `Pengguna '${name}' (${role}) berhasil didaftarkan. Akun dapat langsung digunakan untuk masuk.`,
+        user: { uid: targetUid, name, email: cleanEmail, role },
       });
     } catch (err: any) {
       console.error("[ADMIN CREATE USER ERROR]", err.message);

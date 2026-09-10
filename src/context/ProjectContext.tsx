@@ -38,29 +38,20 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
 
     let q = query(collection(db, "projects"), orderBy("createdAt", "desc"));
     
-    // If not OWNER/ADMIN, only fetch assigned projects
-    // For now we fetch all and filter client side if needed, or query specifically.
-    // Firestore security rules will need to align with this.
-    // If user is VIEWER, they can only view projects they are assigned to.
-    if (role === "CLIENT_VIEWER" || role === "TEAM" || role === "PROJECT_LEADER") {
-       if (appUser.assignedProjectIds && appUser.assignedProjectIds.length > 0) {
-          // Firestore 'in' query supports up to 10 items.
-          // If a user has >10 projects, we need a different strategy, but for now this suffices.
-          q = query(
-            collection(db, "projects"), 
-            where("id", "in", appUser.assignedProjectIds.slice(0, 10)),
-            orderBy("createdAt", "desc")
-          );
-       } else {
-          setProjects([]);
-          setLoadingProjects(false);
-          return;
-       }
-    }
-
+    // Firestore security rules enforce read permissions per role and assignment.
+    // For roles with project scoping, we apply client-side filtering on assigned members/leaders as well.
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const projData = snapshot.docs.map(doc => doc.data() as Project);
-      setProjects(projData);
+      const filtered = projData.filter(p => {
+        if (role === "OWNER" || role === "ADMIN" || role === "FINANCE") return true;
+        const uid = appUser.uid;
+        const email = (appUser.email || "").toLowerCase();
+        const isLeader = p.projectLeaderId === uid || (p.projectLeaderEmail && p.projectLeaderEmail.toLowerCase() === email);
+        const isMember = (p.members || []).some(m => m === uid || (email && m.toLowerCase() === email));
+        const isAssigned = (appUser.assignedProjectIds || []).includes(p.id);
+        return isLeader || isMember || isAssigned;
+      });
+      setProjects(filtered);
       setLoadingProjects(false);
     }, (error) => {
       console.error("Error fetching projects", error);
