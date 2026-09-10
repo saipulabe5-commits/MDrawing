@@ -7,7 +7,7 @@ import { useProjects } from '../../../context/ProjectContext';
 import { useDocument } from '../../../context/DocumentContext';
 import { usePermissions } from '../../../hooks/usePermissions';
 import { ProjectExpense, ProjectExpenseCategory, ProjectExpenseStatus } from '../../../types';
-import { Button, Card, Modal, Input, Badge } from '../../../components/ui';
+import { Button, Card, Modal, Input, Badge, ConfirmModal } from '../../../components/ui';
 import { Plus, Download, Trash2, Edit2, FileText, CheckCircle, ExternalLink, Paperclip } from 'lucide-react';
 import { generateExpenseReportPdf } from '../../../lib/exportUtils';
 import toast from 'react-hot-toast';
@@ -39,6 +39,7 @@ export function ExpensesTab() {
   // Modal form states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<ProjectExpense | null>(null);
+  const [expenseToDelete, setExpenseToDelete] = useState<{ id: string; number: string } | null>(null);
 
   const {
     register,
@@ -134,18 +135,12 @@ export function ExpensesTab() {
     }
   };
 
-  const handleDelete = async (id: string, number: string) => {
+  const handleDelete = (id: string, number: string) => {
     if (!canEditFinance()) {
       toast.error('Akses ditolak: Anda tidak memiliki wewenang menghapus pengeluaran.');
       return;
     }
-    if (!window.confirm(`Yakin ingin menghapus biaya ${number}?`)) return;
-    try {
-      await deleteExpense(id);
-      toast.success('Pengeluaran berhasil dihapus');
-    } catch (err: any) {
-      toast.error(err.message || 'Gagal menghapus pengeluaran');
-    }
+    setExpenseToDelete({ id, number });
   };
 
   const handleExportPdf = () => {
@@ -529,6 +524,27 @@ export function ExpensesTab() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!expenseToDelete}
+        onClose={() => setExpenseToDelete(null)}
+        onConfirm={async () => {
+          if (expenseToDelete) {
+            try {
+              await deleteExpense(expenseToDelete.id);
+              toast.success('Pengeluaran berhasil dihapus');
+            } catch (err: any) {
+              toast.error(err.message || 'Gagal menghapus pengeluaran');
+            }
+            setExpenseToDelete(null);
+          }
+        }}
+        title="Konfirmasi Hapus Pengeluaran"
+        message={`Apakah Anda yakin ingin menghapus data pengeluaran ${expenseToDelete?.number || ''}? Data yang dihapus tidak dapat dipulihkan.`}
+        confirmLabel="Ya, Hapus"
+        cancelLabel="Batal"
+        variant="danger"
+      />
     </div>
   );
 }

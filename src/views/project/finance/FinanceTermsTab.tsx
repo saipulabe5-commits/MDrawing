@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useFinance } from '../../../context/FinanceContext';
 import { usePermissions } from '../../../hooks/usePermissions';
-import { Button, Modal, Input, Select } from '../../../components/ui';
+import { Button, Modal, Input, Select, ConfirmModal } from '../../../components/ui';
 import { Plus, GripVertical, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { FinanceTerm, FinanceTermTrigger } from '../../../types';
@@ -15,6 +15,7 @@ export function FinanceTermsTab() {
   const canEdit = canManageFinance();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [termToDelete, setTermToDelete] = useState<string | null>(null);
 
   const {
     register,
@@ -75,14 +76,8 @@ export function FinanceTermsTab() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Yakin ingin menghapus termin ini?')) return;
-    try {
-      await deleteFinanceTerm(id);
-      toast.success('Termin dihapus');
-    } catch (e: any) {
-      toast.error('Gagal menghapus: ' + e.message);
-    }
+  const handleDelete = (id: string) => {
+    setTermToDelete(id);
   };
 
   return (
@@ -223,6 +218,27 @@ export function FinanceTermsTab() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!termToDelete}
+        onClose={() => setTermToDelete(null)}
+        onConfirm={async () => {
+          if (termToDelete) {
+            try {
+              await deleteFinanceTerm(termToDelete);
+              toast.success('Termin dihapus');
+            } catch (e: any) {
+              toast.error('Gagal menghapus: ' + e.message);
+            }
+            setTermToDelete(null);
+          }
+        }}
+        title="Konfirmasi Hapus Termin"
+        message="Apakah Anda yakin ingin menghapus termin pembayaran ini? Tindakan ini tidak dapat dibatalkan."
+        confirmLabel="Ya, Hapus Termin"
+        cancelLabel="Batal"
+        variant="danger"
+      />
     </div>
   );
 }

@@ -240,3 +240,65 @@ export function SegmentedControl({ options, value, onChange }: { options: {label
     </div>
   );
 }
+
+// ---- CONFIRM MODAL (macOS In-App Alert) ----
+export interface ConfirmModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void | Promise<void>;
+  title?: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  variant?: 'danger' | 'primary';
+  isLoading?: boolean;
+}
+
+export function ConfirmModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  title = "Konfirmasi Tindakan",
+  message,
+  confirmLabel = "Lanjutkan",
+  cancelLabel = "Batal",
+  variant = "danger",
+  isLoading = false
+}: ConfirmModalProps) {
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={title} maxWidth="max-w-md">
+      <div className="space-y-4">
+        <div className="flex items-start gap-3.5">
+          <div className={cn(
+            "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs",
+            variant === 'danger' ? "bg-rose-500/15 text-rose-600 dark:text-rose-400" : "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+          )}>
+            <LucideIcons.AlertTriangle className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0 pt-0.5">
+            <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">
+              {message}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[var(--color-border)]">
+          <Button variant="secondary" size="sm" onClick={onClose} disabled={isLoading}>
+            {cancelLabel}
+          </Button>
+          <Button 
+            variant={variant === 'danger' ? 'danger' : 'primary'} 
+            size="sm" 
+            disabled={isLoading}
+            onClick={async () => {
+              await onConfirm();
+              onClose();
+            }}
+          >
+            {confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+

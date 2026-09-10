@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useDrawingTemplates } from '../context/DrawingTemplateContext';
 import { usePermissions } from '../hooks/usePermissions';
-import { Button, Card, Badge, Modal, Input } from '../components/ui';
+import { Button, Card, Badge, Modal, Input, ConfirmModal } from '../components/ui';
 import { CADSheetModal } from '../components/CADSheetModal';
 import {
   BookTemplate,
@@ -93,6 +93,7 @@ export function DrawingTemplatesView() {
     id: string;
     name: string;
   } | null>(null);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
 
   // Seed loading
   const [isSeeding, setIsSeeding] = useState(false);
@@ -129,19 +130,9 @@ export function DrawingTemplatesView() {
   };
 
   // Bulk actions
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     if (!isManager || selectedItemIds.length === 0) return;
-    if (!window.confirm(`Hapus ${selectedItemIds.length} gambar terpilih dari template ini?`)) return;
-    const idsToDelete = [...selectedItemIds];
-    setSelectedItemIds([]);
-    try {
-      for (const id of idsToDelete) {
-        await deleteItem(id);
-      }
-      toast.success(`${idsToDelete.length} gambar berhasil dihapus dari template.`);
-    } catch (err) {
-      toast.error('Gagal menghapus beberapa gambar template.');
-    }
+    setShowBulkDeleteModal(true);
   };
 
   const handleBulkSetScale = async (scale: string) => {
@@ -1355,6 +1346,29 @@ export function DrawingTemplatesView() {
         projectCode={selectedTemplate?.projectType || 'MASTER-TPL'}
         groups={cadGroups}
         items={cadItems}
+      />
+
+      <ConfirmModal
+        isOpen={showBulkDeleteModal}
+        onClose={() => setShowBulkDeleteModal(false)}
+        onConfirm={async () => {
+          const idsToDelete = [...selectedItemIds];
+          setSelectedItemIds([]);
+          setShowBulkDeleteModal(false);
+          try {
+            for (const id of idsToDelete) {
+              await deleteItem(id);
+            }
+            toast.success(`${idsToDelete.length} gambar berhasil dihapus dari template.`);
+          } catch (err) {
+            toast.error('Gagal menghapus beberapa gambar template.');
+          }
+        }}
+        title="Hapus Gambar Terpilih"
+        message={`Apakah Anda yakin ingin menghapus ${selectedItemIds.length} gambar terpilih dari template ini? Tindakan ini tidak dapat dibatalkan.`}
+        confirmLabel="Ya, Hapus Gambar"
+        cancelLabel="Batal"
+        variant="danger"
       />
     </div>
   );

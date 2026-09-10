@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useVendor } from '../../../context/VendorContext';
 import { usePermissions } from '../../../hooks/usePermissions';
 import { ProjectVendor, VendorWorkStatus, VendorType } from '../../../types';
-import { Button, Modal, Input, Card } from '../../../components/ui';
+import { Button, Modal, Input, Card, ConfirmModal } from '../../../components/ui';
 import { Plus, Edit2, Trash2, Calendar, Briefcase, FileText, CheckCircle2, Clock, AlertTriangle, PauseCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { VendorContractSchema, VendorContractFormData } from '../../../lib/validationSchemas';
@@ -36,6 +36,7 @@ export function VendorContractsTab({ projectId }: VendorContractsTabProps) {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [contractToDelete, setContractToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const {
     register,
@@ -129,19 +130,12 @@ export function VendorContractsTab({ projectId }: VendorContractsTabProps) {
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
+  const handleDelete = (id: string, name: string) => {
     if (!canManage) {
       toast.error('Akses ditolak: Anda tidak memiliki wewenang menghapus kontrak vendor.');
       return;
     }
-    if (!window.confirm(`Hapus kontrak untuk "${name}"? Data termin yang terkait juga harus diperiksa.`)) return;
-    try {
-      await deleteProjectVendor(id);
-      toast.success('Kontrak vendor berhasil dihapus');
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || 'Gagal menghapus kontrak');
-    }
+    setContractToDelete({ id, name });
   };
 
   const handleStatusChange = async (id: string, status: VendorWorkStatus) => {
@@ -441,6 +435,28 @@ export function VendorContractsTab({ projectId }: VendorContractsTabProps) {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!contractToDelete}
+        onClose={() => setContractToDelete(null)}
+        onConfirm={async () => {
+          if (contractToDelete) {
+            try {
+              await deleteProjectVendor(contractToDelete.id);
+              toast.success('Kontrak vendor berhasil dihapus');
+            } catch (err: any) {
+              console.error(err);
+              toast.error(err.message || 'Gagal menghapus kontrak');
+            }
+            setContractToDelete(null);
+          }
+        }}
+        title="Konfirmasi Hapus Kontrak Vendor"
+        message={`Apakah Anda yakin ingin menghapus kontrak vendor untuk "${contractToDelete?.name || ''}"? Data termin dan tagihan yang terkait harus ditinjau kembali.`}
+        confirmLabel="Ya, Hapus Kontrak"
+        cancelLabel="Batal"
+        variant="danger"
+      />
     </div>
   );
 }

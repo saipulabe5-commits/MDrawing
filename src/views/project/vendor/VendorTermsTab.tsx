@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useVendor } from '../../../context/VendorContext';
 import { usePermissions } from '../../../hooks/usePermissions';
 import { VendorPaymentTerm, VendorTermTrigger, ProjectVendor } from '../../../types';
-import { Button, Modal, Input, Card } from '../../../components/ui';
+import { Button, Modal, Input, Card, ConfirmModal } from '../../../components/ui';
 import { Plus, Edit2, Trash2, ArrowUp, ArrowDown, FilePlus2, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { VendorPaymentTermSchema, VendorPaymentTermFormData } from '../../../lib/validationSchemas';
@@ -41,6 +41,7 @@ export function VendorTermsTab({ projectId, onGenerateBillFromTerm }: VendorTerm
   const [selectedVendorFilter, setSelectedVendorFilter] = useState<string>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [termToDelete, setTermToDelete] = useState<{ id: string; name: string } | null>(null);
 
   // Modal Generate Bill from Term
   const [isBillModalOpen, setIsBillModalOpen] = useState(false);
@@ -121,15 +122,8 @@ export function VendorTermsTab({ projectId, onGenerateBillFromTerm }: VendorTerm
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Hapus termin "${name}"?`)) return;
-    try {
-      await deleteVendorPaymentTerm(id);
-      toast.success('Termin berhasil dihapus');
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || 'Gagal menghapus termin');
-    }
+  const handleDelete = (id: string, name: string) => {
+    setTermToDelete({ id, name });
   };
 
   const handleMove = async (index: number, direction: 'up' | 'down', filteredList: VendorPaymentTerm[]) => {
@@ -518,6 +512,28 @@ export function VendorTermsTab({ projectId, onGenerateBillFromTerm }: VendorTerm
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!termToDelete}
+        onClose={() => setTermToDelete(null)}
+        onConfirm={async () => {
+          if (termToDelete) {
+            try {
+              await deleteVendorPaymentTerm(termToDelete.id);
+              toast.success('Termin berhasil dihapus');
+            } catch (err: any) {
+              console.error(err);
+              toast.error(err.message || 'Gagal menghapus termin');
+            }
+            setTermToDelete(null);
+          }
+        }}
+        title="Konfirmasi Hapus Termin Vendor"
+        message={`Apakah Anda yakin ingin menghapus termin "${termToDelete?.name || ''}"? Tindakan ini tidak dapat dibatalkan.`}
+        confirmLabel="Ya, Hapus Termin"
+        cancelLabel="Batal"
+        variant="danger"
+      />
     </div>
   );
 }

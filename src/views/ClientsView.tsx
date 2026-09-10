@@ -3,7 +3,7 @@ import { collection, query, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/
 import { db } from '../lib/firebase';
 import { Client } from '../types';
 import { usePermissions } from '../hooks/usePermissions';
-import { Button, Modal, Input, Card } from '../components/ui';
+import { Button, Modal, Input, Card, ConfirmModal } from '../components/ui';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -11,6 +11,7 @@ export function ClientsView() {
   const [clients, setClients] = useState<Client[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [clientToDelete, setClientToDelete] = useState<{ id: string; name?: string } | null>(null);
   const [formData, setFormData] = useState<Partial<Client>>({
     clientName: '',
     companyName: '',
@@ -67,18 +68,12 @@ export function ClientsView() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string, name?: string) => {
     if (!canManageFinance()) {
       toast.error('Akses ditolak: Anda tidak memiliki wewenang menghapus data klien.');
       return;
     }
-    if (!window.confirm('Yakin ingin menghapus klien ini?')) return;
-    try {
-      await deleteDoc(doc(db, 'clients', id));
-      toast.success('Klien dihapus');
-    } catch (e: any) {
-      toast.error('Gagal menghapus klien: ' + e.message);
-    }
+    setClientToDelete({ id, name });
   };
 
   return (
@@ -160,7 +155,7 @@ export function ClientsView() {
                       toast.error("Akses terbatas: Anda tidak memiliki izin menghapus data klien.");
                       return;
                     }
-                    handleDelete(client.id);
+                    handleDelete(client.id, client.companyName || client.clientName);
                   }}
                 >
                   <Trash2 className="w-4 h-4" />
@@ -213,6 +208,27 @@ export function ClientsView() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!clientToDelete}
+        onClose={() => setClientToDelete(null)}
+        onConfirm={async () => {
+          if (clientToDelete) {
+            try {
+              await deleteDoc(doc(db, 'clients', clientToDelete.id));
+              toast.success('Klien dihapus');
+            } catch (e: any) {
+              toast.error('Gagal menghapus klien: ' + e.message);
+            }
+            setClientToDelete(null);
+          }
+        }}
+        title="Konfirmasi Hapus Klien"
+        message={`Apakah Anda yakin ingin menghapus data klien ${clientToDelete?.name ? `"${clientToDelete.name}"` : ''}? Tindakan ini tidak dapat dibatalkan.`}
+        confirmLabel="Ya, Hapus Klien"
+        cancelLabel="Batal"
+        variant="danger"
+      />
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { useFinance } from '../../../context/FinanceContext';
 import { usePermissions } from '../../../hooks/usePermissions';
 import { useProjects } from '../../../context/ProjectContext';
 import { useParams } from 'react-router-dom';
-import { Button, Modal, Select, Input, Badge } from '../../../components/ui';
+import { Button, Modal, Select, Input, Badge, ConfirmModal } from '../../../components/ui';
 import { Plus, Send, FileText, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Invoice } from '../../../types';
@@ -20,6 +20,7 @@ export function InvoicesTab() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTermId, setSelectedTermId] = useState('');
+  const [voidInvoiceId, setVoidInvoiceId] = useState<string | null>(null);
   
   // Try to find the approved quotation
   const approvedQuotation = quotations.find(q => q.status === 'Approved');
@@ -149,9 +150,7 @@ export function InvoicesTab() {
                           </Button>
                         )}
                         {canEdit && !['Paid', 'Cancelled', 'Void'].includes(inv.status) && (
-                          <Button variant="ghost" size="icon" title="Void" onClick={() => {
-                             if(window.confirm('Void invoice ini?')) updateInvoiceStatus(inv.id, 'Void', 'Kesalahan pembuatan');
-                          }}>
+                          <Button variant="ghost" size="icon" title="Void" onClick={() => setVoidInvoiceId(inv.id)}>
                             <XCircle className="w-4 h-4 text-red-500" />
                           </Button>
                         )}
@@ -197,6 +196,22 @@ export function InvoicesTab() {
           </div>
         )}
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!voidInvoiceId}
+        onClose={() => setVoidInvoiceId(null)}
+        onConfirm={async () => {
+          if (voidInvoiceId) {
+            await updateInvoiceStatus(voidInvoiceId, 'Void', 'Kesalahan pembuatan');
+            setVoidInvoiceId(null);
+          }
+        }}
+        title="Konfirmasi Void Invoice"
+        message="Apakah Anda yakin ingin membatalkan (Void) invoice ini? Status invoice akan diubah menjadi Void dan tidak dapat ditagihkan lagi."
+        confirmLabel="Ya, Void Invoice"
+        cancelLabel="Batal"
+        variant="danger"
+      />
     </div>
   );
 }

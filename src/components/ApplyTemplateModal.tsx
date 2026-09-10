@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useDrawingTemplates } from "../context/DrawingTemplateContext";
-import { Modal, Button, Badge } from "./ui";
+import { Modal, Button, Badge, ConfirmModal } from "./ui";
 import { Layers, CheckCircle2, AlertTriangle, ArrowRight, BookOpen } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -16,6 +16,7 @@ export function ApplyTemplateModal({ isOpen, onClose, projectId, projectName }: 
   const [selectedId, setSelectedId] = useState<string>("");
   const [strategy, setStrategy] = useState<"append" | "overwrite">("append");
   const [loading, setLoading] = useState(false);
+  const [showOverwriteConfirm, setShowOverwriteConfirm] = useState(false);
 
   // Auto select first template if available
   React.useEffect(() => {
@@ -26,19 +27,7 @@ export function ApplyTemplateModal({ isOpen, onClose, projectId, projectName }: 
 
   if (!isOpen) return null;
 
-  const handleApply = async () => {
-    if (!selectedId) {
-      toast.error("Pilih salah satu template terlebih dahulu.");
-      return;
-    }
-
-    if (strategy === "overwrite") {
-      const confirm = window.confirm(
-        "PERINGATAN: Opsi 'Ganti Semua' akan menghapus seluruh grup dan item gambar yang ada di proyek ini saat ini. Lanjutkan?"
-      );
-      if (!confirm) return;
-    }
-
+  const executeApply = async () => {
     setLoading(true);
     try {
       await applyTemplateToProject(projectId, selectedId, strategy);
@@ -48,6 +37,20 @@ export function ApplyTemplateModal({ isOpen, onClose, projectId, projectName }: 
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleApply = async () => {
+    if (!selectedId) {
+      toast.error("Pilih salah satu template terlebih dahulu.");
+      return;
+    }
+
+    if (strategy === "overwrite") {
+      setShowOverwriteConfirm(true);
+      return;
+    }
+
+    await executeApply();
   };
 
   const selectedTemplate = templates.find((t) => t.id === selectedId);
@@ -193,6 +196,16 @@ export function ApplyTemplateModal({ isOpen, onClose, projectId, projectName }: 
           </Button>
         </div>
       </div>
+      <ConfirmModal
+        isOpen={showOverwriteConfirm}
+        onClose={() => setShowOverwriteConfirm(false)}
+        onConfirm={executeApply}
+        title="Konfirmasi Ganti Semua"
+        message="PERINGATAN: Opsi 'Ganti Semua' akan menghapus seluruh grup dan item gambar yang ada di proyek ini saat ini dan menggantikannya dengan isi template. Lanjutkan?"
+        confirmLabel="Ya, Ganti Semua"
+        cancelLabel="Batal"
+        variant="danger"
+      />
     </Modal>
   );
 }

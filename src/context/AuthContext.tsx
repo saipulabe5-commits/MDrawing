@@ -173,9 +173,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logOut = async () => {
     try {
+      setUser(null);
+      setAppUser(null);
+      sessionStorage.removeItem("mdrawing_simulated_role");
+      setSimulatedRoleState(null);
       await signOut(auth);
-    } catch (error) {
+      toast.success("Berhasil keluar dari akun MDrawing");
+    } catch (error: any) {
       console.error("Logout failed:", error);
+      toast.error(`Gagal keluar: ${error?.message || 'Terjadi kesalahan'}`);
     }
   };
 

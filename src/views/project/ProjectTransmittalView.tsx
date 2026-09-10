@@ -7,7 +7,7 @@ import { usePermissions } from '../../hooks/usePermissions';
 import { Project, DrawingItem, DrawingTransmittal } from '../../types';
 import { generateTransmittalPdf } from '../../lib/exportUtils';
 import { 
-  Card, Button, Input, Modal, SegmentedControl 
+  Card, Button, Input, Modal, SegmentedControl, ConfirmModal 
 } from '../../components/ui';
 import { 
   FileText, Download, Plus, Trash2, Send, CheckCircle2, 
@@ -29,6 +29,7 @@ export function ProjectTransmittalView({ project }: ProjectTransmittalViewProps)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedTransmittal, setSelectedTransmittal] = useState<DrawingTransmittal | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [transmittalToDelete, setTransmittalToDelete] = useState<{ id: string; number: string } | null>(null);
 
   // Form State
   const [recipientType, setRecipientType] = useState<"Klien" | "Konsultan Pengawas" | "Kontraktor">("Klien");
@@ -308,11 +309,7 @@ export function ProjectTransmittalView({ project }: ProjectTransmittalViewProps)
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => {
-                          if (confirm(`Yakin ingin menghapus arsip Transmittal ${t.transmittalNumber}?`)) {
-                            deleteTransmittal(t.id);
-                          }
-                        }}
+                        onClick={() => setTransmittalToDelete({ id: t.id, number: t.transmittalNumber })}
                         className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
                         title="Hapus Transmittal"
                       >
@@ -562,6 +559,22 @@ export function ProjectTransmittalView({ project }: ProjectTransmittalViewProps)
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!transmittalToDelete}
+        onClose={() => setTransmittalToDelete(null)}
+        onConfirm={async () => {
+          if (transmittalToDelete) {
+            deleteTransmittal(transmittalToDelete.id);
+            setTransmittalToDelete(null);
+          }
+        }}
+        title="Konfirmasi Hapus Transmittal"
+        message={`Apakah Anda yakin ingin menghapus arsip Transmittal ${transmittalToDelete?.number || ''}? Tindakan ini tidak dapat dibatalkan.`}
+        confirmLabel="Ya, Hapus Transmittal"
+        cancelLabel="Batal"
+        variant="danger"
+      />
     </div>
   );
 }

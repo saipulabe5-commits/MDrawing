@@ -3,11 +3,11 @@ import { Outlet, NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import * as LucideIcons from 'lucide-react';
-import { cn } from '../components/ui';
+import { cn, ConfirmModal } from '../components/ui';
 import { AIStatusBadge } from '../components/ai/AIStatusBadge';
 import { AICommandModal } from '../components/ai/AICommandModal';
 
-function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
+function TopBar({ onMenuClick, onLogoutClick }: { onMenuClick: () => void; onLogoutClick: () => void }) {
   const { appUser } = useAuth();
   const { theme, setTheme } = useTheme();
 
@@ -42,18 +42,29 @@ function TopBar({ onMenuClick }: { onMenuClick: () => void }) {
           {theme === 'dark' ? <LucideIcons.Sun className="w-4 h-4 text-amber-400" /> : <LucideIcons.Moon className="w-4 h-4 text-slate-700" />}
         </button>
         
-        {/* User Avatar */}
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold shadow-xs">
+        {/* User Avatar & Logout */}
+        <div className="flex items-center gap-2 pl-1 border-l border-slate-200 dark:border-slate-800">
+          <div 
+            className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold shadow-xs cursor-default"
+            title={`${appUser?.name || 'User'} (${appUser?.role || 'VIEWER'})`}
+          >
             {appUser?.name?.charAt(0).toUpperCase() || 'U'}
           </div>
+          <button
+            onClick={onLogoutClick}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 hover:border-rose-300 dark:hover:border-rose-900 text-slate-600 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-400 text-xs font-semibold transition-all shadow-xs cursor-pointer"
+            title="Keluar dari akun (Logout)"
+          >
+            <LucideIcons.LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Keluar</span>
+          </button>
         </div>
       </div>
     </header>
   );
 }
 
-function Sidebar({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
+function Sidebar({ isOpen, onClose, onLogoutClick }: { isOpen: boolean; onClose: () => void; onLogoutClick: () => void }) {
   const { appUser } = useAuth();
   
   // This will be expanded in later phases. Just Foundation for Phase 1.
@@ -161,17 +172,26 @@ function Sidebar({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) 
         
         {/* User Card Footer */}
         <div className="p-3 border-t border-[var(--color-border)] bg-white/50 dark:bg-black/20 shrink-0">
-          <div className="flex items-center gap-3 px-2 py-2 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-white/10 shadow-xs">
-            <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-xs">
-              {appUser?.name?.charAt(0).toUpperCase() || 'U'}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{appUser?.name || 'saipul abe'}</p>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide truncate">{appUser?.role || 'OWNER'}</p>
+          <div className="flex items-center justify-between gap-2.5 px-2.5 py-2 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-white/10 shadow-xs">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-xs">
+                {appUser?.name?.charAt(0).toUpperCase() || 'U'}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{appUser?.name || 'saipul abe'}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                  <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide truncate">{appUser?.role || 'OWNER'}</p>
+                </div>
               </div>
             </div>
+            <button
+              onClick={onLogoutClick}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors shrink-0 cursor-pointer"
+              title="Keluar / Logout"
+            >
+              <LucideIcons.LogOut className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </aside>
@@ -181,13 +201,21 @@ function Sidebar({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) 
 
 export function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { simulatedRole, setSimulatedRole, realAppUser } = useAuth();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const { simulatedRole, setSimulatedRole, realAppUser, logOut } = useAuth();
 
   return (
     <div className="min-h-screen bg-[var(--color-bg)] flex">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar 
+        isOpen={sidebarOpen} 
+        onClose={() => setSidebarOpen(false)} 
+        onLogoutClick={() => setShowLogoutModal(true)} 
+      />
       <main className="flex-1 flex flex-col min-w-0">
-        <TopBar onMenuClick={() => setSidebarOpen(true)} />
+        <TopBar 
+          onMenuClick={() => setSidebarOpen(true)} 
+          onLogoutClick={() => setShowLogoutModal(true)} 
+        />
         {simulatedRole && (
           <div className="bg-amber-500/15 dark:bg-amber-500/20 border-b border-amber-500/30 px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900 dark:text-amber-200">
             <div className="flex items-center gap-2">
@@ -211,6 +239,18 @@ export function MainLayout() {
         </div>
       </main>
       <AICommandModal />
+      <ConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={async () => {
+          await logOut();
+        }}
+        title="Konfirmasi Keluar Akun"
+        message="Apakah Anda yakin ingin keluar dari akun MDrawing? Sesi kerja Anda saat ini akan diakhiri dan dialihkan kembali ke layar login."
+        confirmLabel="Ya, Keluar Akun"
+        cancelLabel="Batal"
+        variant="danger"
+      />
     </div>
   );
 }

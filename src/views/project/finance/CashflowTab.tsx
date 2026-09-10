@@ -9,7 +9,7 @@ import { useProjects } from '../../../context/ProjectContext';
 import { useDocument } from '../../../context/DocumentContext';
 import { usePermissions } from '../../../hooks/usePermissions';
 import { CashflowEntry, CashflowType, CashflowCategory } from '../../../types';
-import { Button, Modal, Input, Badge } from '../../../components/ui';
+import { Button, Modal, Input, Badge, ConfirmModal } from '../../../components/ui';
 import { Download, Plus, ArrowDownLeft, ArrowUpRight, DollarSign, Calendar, Trash2 } from 'lucide-react';
 import { generateCashflowReportPdf } from '../../../lib/exportUtils';
 import toast from 'react-hot-toast';
@@ -44,6 +44,7 @@ export function CashflowTab() {
 
   // Modal manual entry
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [entryToDelete, setEntryToDelete] = useState<string | null>(null);
 
   const {
     register,
@@ -241,14 +242,8 @@ export function CashflowTab() {
     }
   };
 
-  const handleDeleteManual = async (id: string) => {
-    if (!window.confirm('Hapus transaksi arus kas manual ini?')) return;
-    try {
-      await deleteCashflowEntry(id);
-      toast.success('Transaksi berhasil dihapus');
-    } catch (err: any) {
-      toast.error(err.message || 'Gagal menghapus transaksi');
-    }
+  const handleDeleteManual = (id: string) => {
+    setEntryToDelete(id);
   };
 
   return (
@@ -505,6 +500,27 @@ export function CashflowTab() {
           </div>
         </form>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!entryToDelete}
+        onClose={() => setEntryToDelete(null)}
+        onConfirm={async () => {
+          if (entryToDelete) {
+            try {
+              await deleteCashflowEntry(entryToDelete);
+              toast.success('Transaksi berhasil dihapus');
+            } catch (err: any) {
+              toast.error(err.message || 'Gagal menghapus transaksi');
+            }
+            setEntryToDelete(null);
+          }
+        }}
+        title="Konfirmasi Hapus Transaksi Kas"
+        message="Apakah Anda yakin ingin menghapus transaksi arus kas manual ini? Tindakan ini tidak dapat dibatalkan."
+        confirmLabel="Ya, Hapus"
+        cancelLabel="Batal"
+        variant="danger"
+      />
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { collection, query, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/
 import { db } from '../lib/firebase';
 import { Vendor, VendorType } from '../types';
 import { usePermissions } from '../hooks/usePermissions';
-import { Button, Modal, Input, Card } from '../components/ui';
+import { Button, Modal, Input, Card, ConfirmModal } from '../components/ui';
 import { Plus, Edit2, Trash2, Search, Filter, Phone, Mail, Building2, CreditCard, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -25,6 +25,7 @@ export function VendorsView() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [vendorToDelete, setVendorToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const [formData, setFormData] = useState<Partial<Vendor>>({
     vendorName: '',
@@ -141,19 +142,12 @@ export function VendorsView() {
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
+  const handleDelete = (id: string, name: string) => {
     if (!canManage) {
       toast.error('Akses ditolak: Anda tidak memiliki wewenang menghapus data vendor.');
       return;
     }
-    if (!window.confirm(`Yakin ingin menghapus vendor "${name}"?`)) return;
-    try {
-      await deleteDoc(doc(db, 'vendors', id));
-      toast.success('Vendor berhasil dihapus');
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || 'Gagal menghapus vendor');
-    }
+    setVendorToDelete({ id, name });
   };
 
   const filteredVendors = vendors.filter(v => {
@@ -452,6 +446,28 @@ export function VendorsView() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal
+        isOpen={!!vendorToDelete}
+        onClose={() => setVendorToDelete(null)}
+        onConfirm={async () => {
+          if (vendorToDelete) {
+            try {
+              await deleteDoc(doc(db, 'vendors', vendorToDelete.id));
+              toast.success('Vendor berhasil dihapus');
+            } catch (err: any) {
+              console.error(err);
+              toast.error(err.message || 'Gagal menghapus vendor');
+            }
+            setVendorToDelete(null);
+          }
+        }}
+        title="Konfirmasi Hapus Vendor"
+        message={`Apakah Anda yakin ingin menghapus master data vendor "${vendorToDelete?.name || ''}"? Tindakan ini tidak dapat dibatalkan.`}
+        confirmLabel="Ya, Hapus Vendor"
+        cancelLabel="Batal"
+        variant="danger"
+      />
     </div>
   );
 }
