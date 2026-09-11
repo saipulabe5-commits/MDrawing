@@ -33,8 +33,8 @@ const lightTokens = {
   textSecondary: '#334155',
   textTertiary: '#475569',
   accentBlueText: '#0369A1',
-  accentGreen: '#16A34A',
-  accentOrange: '#EA580C',
+  accentGreenText: '#15803D',
+  accentOrangeText: '#C2410C',
   accentRed: '#DC2626',
 };
 
@@ -46,8 +46,8 @@ const darkTokens = {
   textSecondary: '#94A3B8',
   textTertiary: '#8C9BB1',
   accentBlueText: '#7DD3FC',
-  accentGreen: '#4ADE80',
-  accentOrange: '#FB923C',
+  accentGreenText: '#4ADE80',
+  accentOrangeText: '#FB923C',
   accentRed: '#F87171',
 };
 

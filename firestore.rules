@@ -26,20 +26,25 @@ service cloud.firestore {
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
     }
 
-    function hasOwnerCustomClaim() { 
-      return request.auth.token.role == "OWNER"; 
-    }
-
     function getUserDoc() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function hasOwnerCustomClaim() { 
+      return request.auth.token.role == "OWNER" 
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && getUserDoc().get('role', '') == "OWNER"; 
+    }
+
     function getPrincipalRole() {
-      return hasOwnerCustomClaim() ? "OWNER" : getUserDoc().get('role', 'VIEWER');
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? getUserDoc().get('role', 'VIEWER')
+        : (request.auth.token.role == "OWNER" ? "OWNER" : "VIEWER");
     }
 
     function isPrincipalActive() {
-      return hasOwnerCustomClaim() ? true : getUserDoc().get('isActive', false) == true;
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && getUserDoc().get('isActive', false) == true;
     }
 
     function isOwnerOrAdmin() {
@@ -49,7 +54,7 @@ service cloud.firestore {
 
     function isCompanyWideFinanceRole() {
       let role = getPrincipalRole();
-      return role in ["OWNER", "ADMIN", "FINANCE"];
+      return role in ["OWNER", "ADMIN"];
     }
 
     function canViewFinance() {
@@ -93,7 +98,13 @@ service cloud.firestore {
     }
 
     function canAccessProjectForRead(projId) {
-      return isOwnerOrAdmin() || isCompanyWideFinanceRole() || getPrincipalRole() == "VIEWER" || isAssignedToProject(projId);
+      return isOwnerOrAdmin() || isAssignedToProject(projId);
+    }
+
+    function canMutateProjectFinance(projId) {
+      return isValidId(projId)
+        && exists(/databases/$(database)/documents/projects/$(projId))
+        && (isOwnerOrAdmin() || isAssignedToProject(projId));
     }
 
     function canAccessProjectForWrite(projId) {
@@ -304,55 +315,31 @@ service cloud.firestore {
 
     // FINANCE COLLECTIONS (Project-Scoped)
     match /quotations/{quotationId} {
-      allow read: if isSignedIn() && isPrincipalActive() && (
-        isCompanyWideFinanceRole() || (canViewFinance() && 'projectId' in resource.data && canAccessProjectForRead(resource.data.projectId))
-      );
-      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidQuotation(incoming());
-      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidQuotation(incoming()) && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
-      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
+      allow read: if isSignedIn() && isPrincipalActive() && canViewFinance() && canAccessProjectForRead(resource.data.projectId);
+      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(incoming().projectId) && isValidQuotation(incoming());
+      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId) && incoming().projectId == resource.data.projectId && isValidQuotation(incoming());
+      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId);
     }
 
     match /financeTerms/{termId} {
-      allow read: if isSignedIn() && isPrincipalActive() && (
-        isCompanyWideFinanceRole() || (canViewFinance() && 'projectId' in resource.data && canAccessProjectForRead(resource.data.projectId))
-      );
-      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidFinanceTerm(incoming());
-      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidFinanceTerm(incoming()) && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
-      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
+      allow read: if isSignedIn() && isPrincipalActive() && canViewFinance() && canAccessProjectForRead(resource.data.projectId);
+      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(incoming().projectId) && isValidFinanceTerm(incoming());
+      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId) && incoming().projectId == resource.data.projectId && isValidFinanceTerm(incoming());
+      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId);
     }
 
     match /invoices/{invoiceId} {
-      allow read: if isSignedIn() && isPrincipalActive() && (
-        isCompanyWideFinanceRole() || (canViewFinance() && 'projectId' in resource.data && canAccessProjectForRead(resource.data.projectId))
-      );
-      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidInvoice(incoming());
-      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidInvoice(incoming()) && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
-      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
+      allow read: if isSignedIn() && isPrincipalActive() && canViewFinance() && canAccessProjectForRead(resource.data.projectId);
+      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(incoming().projectId) && isValidInvoice(incoming());
+      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId) && incoming().projectId == resource.data.projectId && isValidInvoice(incoming());
+      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId);
     }
 
     match /clientPayments/{paymentId} {
-      allow read: if isSignedIn() && isPrincipalActive() && (
-        isCompanyWideFinanceRole() || (canViewFinance() && 'projectId' in resource.data && canAccessProjectForRead(resource.data.projectId))
-      );
-      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidClientPayment(incoming());
-      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidClientPayment(incoming()) && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
-      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
+      allow read: if isSignedIn() && isPrincipalActive() && canViewFinance() && canAccessProjectForRead(resource.data.projectId);
+      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(incoming().projectId) && isValidClientPayment(incoming());
+      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId) && incoming().projectId == resource.data.projectId && isValidClientPayment(incoming());
+      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId);
     }
 
     // VENDOR COLLECTIONS (Project-Scoped)
@@ -362,82 +349,46 @@ service cloud.firestore {
     }
 
     match /projectVendors/{projectVendorId} {
-      allow read: if isSignedIn() && isPrincipalActive() && (
-        isCompanyWideFinanceRole() || ((canViewVendorCost() || canViewFinance()) && 'projectId' in resource.data && canAccessProjectForRead(resource.data.projectId))
-      );
-      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidProjectVendor(incoming());
-      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidProjectVendor(incoming()) && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
-      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
+      allow read: if isSignedIn() && isPrincipalActive() && (canViewVendorCost() || canViewFinance()) && canAccessProjectForRead(resource.data.projectId);
+      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(incoming().projectId) && isValidProjectVendor(incoming());
+      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId) && incoming().projectId == resource.data.projectId && isValidProjectVendor(incoming());
+      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId);
     }
 
     match /vendorPaymentTerms/{termId} {
-      allow read: if isSignedIn() && isPrincipalActive() && (
-        isCompanyWideFinanceRole() || ((canViewVendorCost() || canViewFinance()) && 'projectId' in resource.data && canAccessProjectForRead(resource.data.projectId))
-      );
-      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidVendorPaymentTerm(incoming());
-      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidVendorPaymentTerm(incoming()) && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
-      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
+      allow read: if isSignedIn() && isPrincipalActive() && (canViewVendorCost() || canViewFinance()) && canAccessProjectForRead(resource.data.projectId);
+      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(incoming().projectId) && isValidVendorPaymentTerm(incoming());
+      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId) && incoming().projectId == resource.data.projectId && isValidVendorPaymentTerm(incoming());
+      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId);
     }
 
     match /vendorBills/{billId} {
-      allow read: if isSignedIn() && isPrincipalActive() && (
-        isCompanyWideFinanceRole() || ((canViewVendorCost() || canViewFinance()) && 'projectId' in resource.data && canAccessProjectForRead(resource.data.projectId))
-      );
-      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidVendorBill(incoming());
-      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidVendorBill(incoming()) && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
-      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
+      allow read: if isSignedIn() && isPrincipalActive() && (canViewVendorCost() || canViewFinance()) && canAccessProjectForRead(resource.data.projectId);
+      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(incoming().projectId) && isValidVendorBill(incoming());
+      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId) && incoming().projectId == resource.data.projectId && isValidVendorBill(incoming());
+      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId);
     }
 
     match /vendorPayments/{paymentId} {
-      allow read: if isSignedIn() && isPrincipalActive() && (
-        isCompanyWideFinanceRole() || ((canViewVendorPayment() || canViewFinance()) && 'projectId' in resource.data && canAccessProjectForRead(resource.data.projectId))
-      );
-      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidVendorPayment(incoming());
-      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidVendorPayment(incoming()) && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
-      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
+      allow read: if isSignedIn() && isPrincipalActive() && (canViewVendorPayment() || canViewFinance()) && canAccessProjectForRead(resource.data.projectId);
+      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(incoming().projectId) && isValidVendorPayment(incoming());
+      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId) && incoming().projectId == resource.data.projectId && isValidVendorPayment(incoming());
+      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId);
     }
 
     // EXPENSES & CASHFLOW (Project-Scoped)
     match /projectExpenses/{expenseId} {
-      allow read: if isSignedIn() && isPrincipalActive() && (
-        isCompanyWideFinanceRole() || (canViewFinance() && 'projectId' in resource.data && canAccessProjectForRead(resource.data.projectId))
-      );
-      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidProjectExpense(incoming());
-      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidProjectExpense(incoming()) && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
-      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
+      allow read: if isSignedIn() && isPrincipalActive() && canViewFinance() && canAccessProjectForRead(resource.data.projectId);
+      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(incoming().projectId) && isValidProjectExpense(incoming());
+      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId) && incoming().projectId == resource.data.projectId && isValidProjectExpense(incoming());
+      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId);
     }
 
     match /cashflowEntries/{entryId} {
-      allow read: if isSignedIn() && isPrincipalActive() && (
-        isCompanyWideFinanceRole() || (canViewFinance() && 'projectId' in resource.data && canAccessProjectForRead(resource.data.projectId))
-      );
-      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidCashflowEntry(incoming());
-      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && isValidCashflowEntry(incoming()) && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
-      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && (
-        isCompanyWideFinanceRole() || canAccessProjectForRead(resource.data.projectId)
-      );
+      allow read: if isSignedIn() && isPrincipalActive() && canViewFinance() && canAccessProjectForRead(resource.data.projectId);
+      allow create: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(incoming().projectId) && isValidCashflowEntry(incoming());
+      allow update: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId) && incoming().projectId == resource.data.projectId && isValidCashflowEntry(incoming());
+      allow delete: if isSignedIn() && isPrincipalActive() && canEditFinance() && canMutateProjectFinance(resource.data.projectId);
     }
 
     // SYSTEM & METADATA
@@ -465,7 +416,9 @@ service cloud.firestore {
 
     match /generatedDocuments/{documentId} {
       allow read: if isSignedIn() && isPrincipalActive() && (!('projectId' in resource.data) || canAccessProjectForRead(resource.data.projectId));
-      allow create, update, delete: if isSignedIn() && isPrincipalActive() && (canEditFinance() || isOwnerOrAdmin() || canManageTransmittal());
+      allow create: if isSignedIn() && isPrincipalActive() && (canEditFinance() || isOwnerOrAdmin() || canManageTransmittal()) && (!('projectId' in incoming()) || canMutateProjectFinance(incoming().projectId));
+      allow update: if isSignedIn() && isPrincipalActive() && (canEditFinance() || isOwnerOrAdmin() || canManageTransmittal()) && (!('projectId' in resource.data) || canMutateProjectFinance(resource.data.projectId));
+      allow delete: if isSignedIn() && isPrincipalActive() && isOwnerOrAdmin();
     }
   }
 }

@@ -32,10 +32,21 @@ export function ProjectDocumentsTab() {
 
   const project = projects.find((p) => p.id === projectId);
 
-  if (!project) return null;
+  if (!project || !projectId) return null;
+
+  // Strict project data isolation
+  const projectQuotations = quotations.filter((item) => item.projectId === projectId);
+  const projectInvoices = invoices.filter((item) => item.projectId === projectId);
+  const projectClientPayments = clientPayments.filter((item) => item.projectId === projectId);
+  const projectExpenses = expenses.filter((e) => e.projectId === projectId);
+  const projectVendorPayments = vendorPayments.filter((vp) => vp.projectId === projectId);
+  const projectVendorBills = vendorBills.filter((b) => b.projectId === projectId);
+  const currentProjectVendors = projectVendors.filter((pv) => pv.projectId === projectId);
+  const projectGroups = groups.filter((g) => g.projectId === projectId);
+  const projectItems = items.filter((i) => i.projectId === projectId);
 
   const handleDownloadQuotation = () => {
-    const q = quotations.find((item) => item.status === 'Approved' || item.status === 'Sent') || quotations[0];
+    const q = projectQuotations.find((item) => item.status === 'Approved' || item.status === 'Sent') || projectQuotations[0];
     if (!q) {
       toast.error('Belum ada data penawaran harga (Quotation) untuk proyek ini.');
       return;
@@ -56,12 +67,13 @@ export function ProjectDocumentsTab() {
   };
 
   const handleDownloadInvoice = () => {
-    const inv = invoices.find((item) => item.status === 'Sent' || item.status === 'Paid') || invoices[0];
+    const inv = projectInvoices.find((item) => item.status === 'Sent' || item.status === 'Paid') || projectInvoices[0];
     if (!inv) {
       toast.error('Belum ada data Faktur Tagihan (Invoice) untuk proyek ini.');
       return;
     }
-    generateInvoicePdf(inv, quotations[0], project, { companyName: project.clientName || 'Klien' } as any, 'Termin Proyek');
+    const matchingQuotation = projectQuotations.find((item) => item.status === 'Approved' || item.status === 'Sent') || projectQuotations[0];
+    generateInvoicePdf(inv, matchingQuotation, project, { companyName: project.clientName || 'Klien' } as any, 'Termin Proyek');
     recordGeneratedDocument({
       projectId: project.id,
       projectName: project.projectName,
@@ -77,9 +89,9 @@ export function ProjectDocumentsTab() {
   };
 
   const handleDownloadReceipt = () => {
-    const pay = clientPayments.find((item) => item.status === 'Confirmed') || clientPayments[0];
+    const pay = projectClientPayments.find((item) => item.status === 'Confirmed') || projectClientPayments[0];
     if (!pay) {
-      toast.error('Belum ada catatan pembayaran klien terkonfirmasi.');
+      toast.error('Belum ada catatan pembayaran klien terkonfirmasi untuk proyek ini.');
       return;
     }
     generatePaymentReceiptPdf(pay, project, { name: project.clientName || 'Klien' } as any);
@@ -98,7 +110,7 @@ export function ProjectDocumentsTab() {
   };
 
   const handleDownloadExpenses = () => {
-    generateExpenseReportPdf(project, expenses, companySettings);
+    generateExpenseReportPdf(project, projectExpenses, companySettings);
     recordGeneratedDocument({
       projectId: project.id,
       projectName: project.projectName,
@@ -114,13 +126,13 @@ export function ProjectDocumentsTab() {
   };
 
   const handleDownloadCashflow = () => {
-    const totalIn = clientPayments.filter((cp) => cp.status === 'Confirmed').reduce((s, cp) => s + cp.amount, 0);
-    const totalOutVendor = vendorPayments.filter((vp) => vp.status === 'Confirmed').reduce((s, vp) => s + vp.amount, 0);
-    const totalOutExp = expenses.filter((e) => e.status === 'Approved' || e.status === 'Paid').reduce((s, e) => s + e.amount, 0);
+    const totalIn = projectClientPayments.filter((cp) => cp.status === 'Confirmed').reduce((s, cp) => s + cp.amount, 0);
+    const totalOutVendor = projectVendorPayments.filter((vp) => vp.status === 'Confirmed').reduce((s, vp) => s + vp.amount, 0);
+    const totalOutExp = projectExpenses.filter((e) => e.status === 'Approved' || e.status === 'Paid').reduce((s, e) => s + e.amount, 0);
     const totalOut = totalOutVendor + totalOutExp;
 
     const entries = [
-      ...clientPayments.filter((cp) => cp.status === 'Confirmed').map((cp) => ({
+      ...projectClientPayments.filter((cp) => cp.status === 'Confirmed').map((cp) => ({
         id: cp.id,
         date: cp.paymentDate,
         type: 'IN' as const,
@@ -130,7 +142,7 @@ export function ProjectDocumentsTab() {
         amount: cp.amount,
         createdAt: new Date().toISOString(),
       })),
-      ...vendorPayments.filter((vp) => vp.status === 'Confirmed').map((vp) => ({
+      ...projectVendorPayments.filter((vp) => vp.status === 'Confirmed').map((vp) => ({
         id: vp.id,
         date: vp.paymentDate,
         type: 'OUT' as const,
@@ -140,7 +152,7 @@ export function ProjectDocumentsTab() {
         amount: vp.amount,
         createdAt: new Date().toISOString(),
       })),
-      ...expenses.filter((e) => e.status === 'Approved' || e.status === 'Paid').map((e) => ({
+      ...projectExpenses.filter((e) => e.status === 'Approved' || e.status === 'Paid').map((e) => ({
         id: e.id,
         date: e.expenseDate,
         type: 'OUT' as const,
@@ -169,9 +181,9 @@ export function ProjectDocumentsTab() {
 
   const handleDownloadPnL = () => {
     const contractVal = project.contractValue || 0;
-    const vendorCost = vendorBills.reduce((s, b) => s + (b.status !== 'Cancelled' ? b.amount : 0), 0);
+    const vendorCost = projectVendorBills.reduce((s, b) => s + (b.status !== 'Cancelled' && b.status !== 'Void' ? b.amount : 0), 0);
     const gross = contractVal - vendorCost;
-    const expCost = expenses.reduce((s, e) => s + (e.status === 'Approved' || e.status === 'Paid' ? e.amount : 0), 0);
+    const expCost = projectExpenses.reduce((s, e) => s + (e.status === 'Approved' || e.status === 'Paid' ? e.amount : 0), 0);
     const net = gross - expCost;
     const margin = contractVal > 0 ? (net / contractVal) * 100 : 0;
 
@@ -203,7 +215,8 @@ export function ProjectDocumentsTab() {
   };
 
   const handleDownloadVendorAP = () => {
-    generateHutangReportPdf(project, vendors, projectVendors, vendorBills, vendorPayments);
+    const activeBills = projectVendorBills.filter((b) => !['Void', 'Cancelled'].includes(b.status));
+    generateHutangReportPdf(project, vendors, currentProjectVendors, activeBills, projectVendorPayments);
     recordGeneratedDocument({
       projectId: project.id,
       projectName: project.projectName,
@@ -219,7 +232,7 @@ export function ProjectDocumentsTab() {
   };
 
   const handleDownloadDrawingTransmittal = () => {
-    exportDrawingListToPDF(project.projectName, groups, items);
+    exportDrawingListToPDF(project.projectName, projectGroups, projectItems);
     recordGeneratedDocument({
       projectId: project.id,
       projectName: project.projectName,
@@ -399,7 +412,7 @@ export function ProjectDocumentsTab() {
               <Download className="w-3.5 h-3.5 mr-1" />
               PDF
             </Button>
-            <Button variant="secondary" size="sm" className="flex-1" onClick={() => exportDrawingListToExcel(project.projectName, groups, items)}>
+            <Button variant="secondary" size="sm" className="flex-1" onClick={() => exportDrawingListToExcel(project.projectName, projectGroups, projectItems)}>
               <FileSpreadsheet className="w-3.5 h-3.5 mr-1" />
               Excel
             </Button>

@@ -1212,7 +1212,8 @@ async function startServer() {
 
       const previewUrl = nodemailer.getTestMessageUrl(info);
       const deliveryId = info.messageId || `email-${Date.now()}`;
-      console.log(`[EMAIL SEND] Sent to: ${cleanTo}, Subject: "${subject}", Preview: ${previewUrl || "N/A"}`);
+      const isSimulated = !process.env.SMTP_HOST || !process.env.SMTP_USER;
+      console.log(`[EMAIL SEND] ${isSimulated ? 'Simulated' : 'SMTP'} to: ${cleanTo}, Subject: "${subject}", Preview: ${previewUrl || "N/A"}`);
 
       if (adminDb) {
         try {
@@ -1223,7 +1224,7 @@ async function startServer() {
             userId: user.uid,
             userName: user.email,
             userRole: user.role,
-            details: `Kirim email ke ${cleanTo}: "${subject}"`,
+            details: `${isSimulated ? 'Kirim email preview/simulasi' : 'Kirim email'} ke ${cleanTo}: "${subject}"`,
             createdAt: new Date().toISOString(),
           });
         } catch {}
@@ -1231,6 +1232,9 @@ async function startServer() {
 
       return res.status(200).json({
         success: true,
+        isSimulated,
+        mode: isSimulated ? "SIMULATOR" : "REAL_SMTP",
+        message: isSimulated ? "Email preview/simulasi berhasil dibuat (SMTP belum dikonfigurasi)" : "Email berhasil dikirim via SMTP",
         messageId: deliveryId,
         previewUrl: typeof previewUrl === "string" ? previewUrl : null,
         to: cleanTo,
@@ -1293,7 +1297,7 @@ async function startServer() {
         }
 
         const dlParts = String(item.deadline).split("-");
-        if (dlParts.length !== 3) continue;
+        if (dlParts.length !== 3 || !dlParts[0] || !dlParts[1] || !dlParts[2]) continue;
 
         const dlYear = parseInt(dlParts[0], 10);
         const dlMonth = parseInt(dlParts[1], 10) - 1;
@@ -1471,6 +1475,7 @@ async function startServer() {
 
       const previewUrl = nodemailer.getTestMessageUrl(info);
       const deliveryId = info.messageId || `rem-${Date.now()}`;
+      const isSimulated = !process.env.SMTP_HOST || !process.env.SMTP_USER;
 
       if (adminDb) {
         try {
@@ -1481,7 +1486,7 @@ async function startServer() {
             userId: user.uid,
             userName: user.email,
             userRole: user.role,
-            details: `Kirim pengingat email ke ${targetEmail} untuk gambar ${cleanDrawingNumber} (${cleanDrawingName})${customNote ? `: "${customNote}"` : ""}`,
+            details: `${isSimulated ? 'Kirim pengingat email preview/simulasi' : 'Kirim pengingat email'} ke ${targetEmail} untuk gambar ${cleanDrawingNumber} (${cleanDrawingName})${customNote ? `: "${customNote}"` : ""}`,
             createdAt: new Date().toISOString(),
           });
         } catch {}
@@ -1489,7 +1494,11 @@ async function startServer() {
 
       return res.status(200).json({
         success: true,
-        message: `Email pengingat berhasil dikirim ke ${targetEmail}.`,
+        isSimulated,
+        mode: isSimulated ? "SIMULATOR" : "REAL_SMTP",
+        message: isSimulated 
+          ? `Email pengingat preview/simulasi dibuat untuk ${targetEmail} (SMTP belum dikonfigurasi).`
+          : `Email pengingat berhasil dikirim ke ${targetEmail}.`,
         messageId: deliveryId,
         previewUrl: typeof previewUrl === "string" ? previewUrl : null,
         recipient: targetEmail,
@@ -1741,7 +1750,7 @@ async function startServer() {
 
     // 1. Strict Zero-Billing & Permitted Model Guard
     const targetModel = requestedModel || "gemini-3.8-flash";
-    const permittedModels = ["gemini-3.8-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
+    const permittedModels = ["gemini-3.8-flash", "gemini-3.1-flash-lite"];
     const prohibitedKeywords = ["pro", "image", "veo", "lyria"];
 
     const isProhibited = prohibitedKeywords.some((p) => targetModel.toLowerCase().includes(p));

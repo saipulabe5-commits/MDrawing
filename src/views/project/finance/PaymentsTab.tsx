@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useParams } from 'react-router-dom';
 import { useFinance } from '../../../context/FinanceContext';
 import { usePermissions } from '../../../hooks/usePermissions';
 import { Button, Modal, Select, Input, Badge } from '../../../components/ui';
@@ -9,14 +10,19 @@ import toast from 'react-hot-toast';
 import { ClientPaymentSchema, ClientPaymentFormData } from '../../../lib/validationSchemas';
 
 export function PaymentsTab() {
+  const { id: projectId } = useParams<{ id: string }>();
   const { clientPayments, invoices, createPayment, updatePaymentStatus } = useFinance();
   const { canManageFinance } = usePermissions();
   const canEdit = canManageFinance();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Filter invoices that are not paid or cancelled
-  const activeInvoices = invoices.filter(i => !['Paid', 'Void', 'Cancelled'].includes(i.status));
+  // Scoped strictly to current active project only
+  const projectInvoices = invoices.filter(i => i.projectId === projectId);
+  const projectPayments = clientPayments.filter(p => p.projectId === projectId);
+
+  // Filter invoices for current project that are not paid or cancelled
+  const activeInvoices = projectInvoices.filter(i => !['Paid', 'Void', 'Cancelled'].includes(i.status));
 
   const {
     register,
@@ -115,15 +121,15 @@ export function PaymentsTab() {
             </tr>
           </thead>
           <tbody>
-            {clientPayments.length === 0 ? (
+            {projectPayments.length === 0 ? (
               <tr>
                 <td colSpan={6} className="py-8 text-center text-[var(--color-text-secondary)]">
-                  Belum ada catatan pembayaran.
+                  Belum ada catatan pembayaran untuk proyek ini.
                 </td>
               </tr>
             ) : (
-              clientPayments.map((pay) => {
-                const inv = invoices.find((i) => i.id === pay.invoiceId);
+              projectPayments.map((pay) => {
+                const inv = projectInvoices.find((i) => i.id === pay.invoiceId);
                 return (
                   <tr key={pay.id} className="border-b border-[var(--color-border)] hover:bg-[var(--color-bg)]">
                     <td className="py-3 px-4">{new Date(pay.paymentDate).toLocaleDateString()}</td>

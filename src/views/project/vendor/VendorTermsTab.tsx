@@ -38,6 +38,10 @@ export function VendorTermsTab({ projectId, onGenerateBillFromTerm }: VendorTerm
   const canManage = canManageFinance();
   const canSeeCost = canViewVendorCost();
 
+  // Scoped strictly to current active project
+  const currentProjectVendors = projectVendors.filter(pv => pv.projectId === projectId);
+  const currentProjectTerms = vendorPaymentTerms.filter(t => t.projectId === projectId);
+
   const [selectedVendorFilter, setSelectedVendorFilter] = useState<string>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -76,7 +80,7 @@ export function VendorTermsTab({ projectId, onGenerateBillFromTerm }: VendorTerm
 
   const handleOpenAdd = () => {
     setEditingId(null);
-    const defaultPv = projectVendors[0];
+    const defaultPv = currentProjectVendors[0];
     reset({
       projectVendorId: defaultPv ? defaultPv.id : '',
       termName: '',
@@ -85,7 +89,7 @@ export function VendorTermsTab({ projectId, onGenerateBillFromTerm }: VendorTerm
       amountType: 'Percentage',
       percentageValue: 50,
       nominalValue: 0,
-      sortOrder: vendorPaymentTerms.length + 1
+      sortOrder: currentProjectTerms.length + 1
     });
     setIsModalOpen(true);
   };
@@ -111,7 +115,7 @@ export function VendorTermsTab({ projectId, onGenerateBillFromTerm }: VendorTerm
         await updateVendorPaymentTerm(editingId, data as any);
         toast.success('Termin bayar vendor diperbarui');
       } else {
-        const nextOrder = vendorPaymentTerms.filter(t => t.projectVendorId === data.projectVendorId).length;
+        const nextOrder = currentProjectTerms.filter(t => t.projectVendorId === data.projectVendorId).length;
         await createVendorPaymentTerm({ ...(data as any), sortOrder: nextOrder });
         toast.success('Termin bayar vendor berhasil dibuat');
       }
@@ -145,7 +149,7 @@ export function VendorTermsTab({ projectId, onGenerateBillFromTerm }: VendorTerm
   };
 
   const handleOpenGenerateBill = (term: VendorPaymentTerm) => {
-    const contract = projectVendors.find(pv => pv.id === term.projectVendorId);
+    const contract = currentProjectVendors.find(pv => pv.id === term.projectVendorId);
     if (!contract) return;
 
     let computedAmount = 0;
@@ -184,7 +188,7 @@ export function VendorTermsTab({ projectId, onGenerateBillFromTerm }: VendorTerm
     }
   };
 
-  const filteredTerms = vendorPaymentTerms.filter(t => {
+  const filteredTerms = currentProjectTerms.filter(t => {
     if (selectedVendorFilter === 'ALL') return true;
     return t.projectVendorId === selectedVendorFilter;
   });
@@ -203,14 +207,14 @@ export function VendorTermsTab({ projectId, onGenerateBillFromTerm }: VendorTerm
         </div>
 
         <div className="flex items-center gap-3">
-          {projectVendors.length > 0 && (
+          {currentProjectVendors.length > 0 && (
             <select
               value={selectedVendorFilter}
               onChange={(e) => setSelectedVendorFilter(e.target.value)}
               className="text-xs font-medium px-3 py-2 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-blue)] text-[var(--color-text-primary)]"
             >
-              <option value="ALL">Semua Vendor ({projectVendors.length})</option>
-              {projectVendors.map(pv => (
+              <option value="ALL">Semua Vendor ({currentProjectVendors.length})</option>
+              {currentProjectVendors.map(pv => (
                 <option key={pv.id} value={pv.id}>
                   {pv.vendorName} ({pv.vendorType})
                 </option>
@@ -218,7 +222,7 @@ export function VendorTermsTab({ projectId, onGenerateBillFromTerm }: VendorTerm
             </select>
           )}
 
-          {canManage && projectVendors.length > 0 && (
+          {canManage && currentProjectVendors.length > 0 && (
             <Button onClick={handleOpenAdd} className="flex items-center gap-2">
               <Plus className="w-4 h-4" />
               <span>Tambah Termin</span>
@@ -231,13 +235,13 @@ export function VendorTermsTab({ projectId, onGenerateBillFromTerm }: VendorTerm
       {filteredTerms.length === 0 ? (
         <div className="p-12 text-center bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] space-y-3">
           <FilePlus2 className="w-12 h-12 mx-auto text-[var(--color-text-secondary)] opacity-40" />
-          <h3 className="text-base font-semibold text-[var(--color-text-primary)]">Belum ada termin bayar</h3>
+          <h3 className="text-base font-semibold text-[var(--color-text-primary)]">Belum ada termin bayar pada proyek ini</h3>
           <p className="text-sm text-[var(--color-text-secondary)] max-w-sm mx-auto">
-            {projectVendors.length === 0
+            {currentProjectVendors.length === 0
               ? 'Tambahkan kontrak vendor terlebih dahulu sebelum membuat termin pembayaran.'
               : 'Atur termin pembayaran untuk vendor yang dipilih (misal: DP 30%, Progres 50%, Selesai 20%).'}
           </p>
-          {canManage && projectVendors.length > 0 && (
+          {canManage && currentProjectVendors.length > 0 && (
             <Button onClick={handleOpenAdd} className="mt-2">
               Tambah Termin Pertama
             </Button>
@@ -246,7 +250,7 @@ export function VendorTermsTab({ projectId, onGenerateBillFromTerm }: VendorTerm
       ) : (
         <div className="space-y-3">
           {filteredTerms.map((term, idx) => {
-            const contract = projectVendors.find(pv => pv.id === term.projectVendorId);
+            const contract = currentProjectVendors.find(pv => pv.id === term.projectVendorId);
             const calculatedNominal = term.amountType === 'Percentage' && contract
               ? ((term.percentageValue || 0) * (contract.contractValue || 0)) / 100
               : term.nominalValue || 0;
@@ -373,7 +377,7 @@ export function VendorTermsTab({ projectId, onGenerateBillFromTerm }: VendorTerm
               {...register('projectVendorId')}
               className="w-full px-3 py-2 text-sm bg-transparent border border-[var(--color-border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-blue)] text-[var(--color-text-primary)]"
             >
-              {projectVendors.map(pv => (
+              {currentProjectVendors.map(pv => (
                 <option key={pv.id} value={pv.id} className="bg-[var(--color-surface)] text-[var(--color-text-primary)]">
                   {pv.vendorName} - {pv.scopeOfWork} (Rp {pv.contractValue.toLocaleString('id-ID')})
                 </option>

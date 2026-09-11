@@ -144,13 +144,13 @@ export function ImportExcelModal({
             const dateObj = new Date(Math.round((Number(deadlineRaw) - 25569) * 86400 * 1000));
             deadline = dateObj.toISOString().split('T')[0];
           } else {
-            const cleanD = deadlineRaw.replace(/\//g, '-');
+            const cleanD = String(deadlineRaw).replace(/\//g, '-');
             const dParts = cleanD.split('-');
-            if (dParts.length === 3) {
+            if (dParts.length === 3 && dParts[0] && dParts[1] && dParts[2]) {
               if (dParts[0].length === 4) {
-                deadline = cleanD;
+                deadline = `${dParts[0]}-${(dParts[1] || '01').padStart(2, '0')}-${(dParts[2] || '01').padStart(2, '0')}`;
               } else if (dParts[2].length === 4) {
-                deadline = `${dParts[2]}-${dParts[1].padStart(2, '0')}-${dParts[0].padStart(2, '0')}`;
+                deadline = `${dParts[2]}-${(dParts[1] || '01').padStart(2, '0')}-${(dParts[0] || '01').padStart(2, '0')}`;
               }
             }
           }
@@ -158,7 +158,7 @@ export function ImportExcelModal({
 
         // Parse progress
         let progress = 0;
-        const pNum = Number(progressRaw.replace('%', '').trim());
+        const pNum = Number(String(progressRaw || '').replace('%', '').trim());
         if (!isNaN(pNum) && pNum >= 0 && pNum <= 100) {
           progress = pNum;
         }

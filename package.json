@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "mdrawing",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx src/engine/workflow/projectWorkflow.test.ts && tsx src/security/dirtyDozenTest.ts && tsx src/security/exportSecurityTest.ts",
+    "test": "tsx src/engine/workflow/projectWorkflow.test.ts && tsx src/security/dirtyDozenTest.ts && tsx src/security/exportSecurityTest.ts && tsx src/engine/ai/aiSafetyTest.ts && tsx scripts/negative-testing.ts && tsx scripts/audit-contrast.ts",
+    "test:security:emulator": "firebase emulators:exec --only firestore,storage \"./node_modules/.bin/tsx scripts/real-emulator-security.ts\"",
+    "test:all": "npm test && npm run test:security:emulator",
     "seed:owner": "tsx server/scripts/seedOwner.ts"
   },
   "dependencies": {
@@ -44,6 +46,7 @@
   },
   "devDependencies": {
     "@firebase/eslint-plugin-security-rules": "^0.0.2",
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "@types/nodemailer": "^8.0.1",

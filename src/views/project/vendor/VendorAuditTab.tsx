@@ -1,12 +1,22 @@
 import React, { useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { useVendor } from '../../../context/VendorContext';
 import { FinancialAuditLog } from '../../../types';
 import { Badge, Modal, Card } from '../../../components/ui';
 import { ShieldCheck, Eye, Clock, User } from 'lucide-react';
 
-export function VendorAuditTab() {
+interface VendorAuditTabProps {
+  projectId?: string;
+}
+
+export function VendorAuditTab({ projectId: propProjectId }: VendorAuditTabProps = {}) {
+  const { id: paramProjectId } = useParams<{ id: string }>();
+  const projectId = propProjectId || paramProjectId;
   const { vendorLogs } = useVendor();
   const [selectedLog, setSelectedLog] = useState<FinancialAuditLog | null>(null);
+
+  // Strictly filter vendor logs by current projectId
+  const currentProjectLogs = vendorLogs.filter(log => log.projectId === projectId);
 
   const actionColors: Record<string, 'default' | 'success' | 'warning' | 'danger' | 'info'> = {
     CREATE: 'success',
@@ -41,14 +51,14 @@ export function VendorAuditTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-border)] text-[var(--color-text-primary)]">
-              {vendorLogs.length === 0 ? (
+              {currentProjectLogs.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-10 text-center text-[var(--color-text-secondary)]">
                     Belum ada riwayat transaksi vendor pada proyek ini.
                   </td>
                 </tr>
               ) : (
-                vendorLogs.map(log => (
+                currentProjectLogs.map(log => (
                   <tr key={log.id} className="hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                     <td className="py-3 px-4 whitespace-nowrap text-[var(--color-text-secondary)]">
                       {new Date(log.createdAt).toLocaleString('id-ID')}

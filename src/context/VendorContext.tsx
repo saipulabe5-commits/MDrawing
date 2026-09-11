@@ -501,8 +501,9 @@ export const VendorProvider: React.FC<{ projectId?: string; children: React.Reac
   const createVendorPayment = async (data: Partial<VendorPayment>) => {
     if (!canEditFinance || !projectId || !appUser) throw new Error("Permission denied");
 
+    const paymentNumber = await generateDocumentNumber('vendorPayment');
+
     return await runTransaction(db, async (transaction) => {
-      const paymentNumber = await generateDocumentNumber('vendorPayment');
       const docRef = doc(collection(db, 'vendorPayments'));
       const paymentAmount = normalizeMoney(data.amount);
 
@@ -513,6 +514,9 @@ export const VendorProvider: React.FC<{ projectId?: string; children: React.Reac
         const billSnap = await transaction.get(billRef);
         if (billSnap.exists()) {
           billData = billSnap.data() as VendorBill;
+          if (billData.projectId !== projectId) {
+            throw new Error(`Integritas Proyek Terlanggar: Tagihan vendor milik proyek (${billData.projectId}) berbeda dengan proyek aktif (${projectId}).`);
+          }
           const currentPaid = normalizeMoney(billData.paidAmount);
           const valResult = validateVendorPaymentMutation(
             paymentAmount,
@@ -522,6 +526,8 @@ export const VendorProvider: React.FC<{ projectId?: string; children: React.Reac
           if (!valResult.isValid) {
             throw new Error(valResult.error || "Validasi pembayaran vendor gagal.");
           }
+        } else {
+          throw new Error("Tagihan vendor yang dipilih tidak ditemukan.");
         }
       }
 

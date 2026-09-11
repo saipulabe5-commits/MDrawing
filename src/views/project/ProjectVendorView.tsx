@@ -84,7 +84,7 @@ export function ProjectVendorView({ projectId }: ProjectVendorViewProps) {
           <VendorHutangTab projectId={projectId} />
         )}
         {activeTab === 'audit' && (
-          <VendorAuditTab />
+          <VendorAuditTab projectId={projectId} />
         )}
       </div>
     </div>

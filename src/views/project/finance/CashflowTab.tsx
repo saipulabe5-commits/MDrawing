@@ -80,10 +80,17 @@ export function CashflowTab() {
 
   // Aggregate all cash movements
   const unifiedEntries: UnifiedCashflowItem[] = useMemo(() => {
+    if (!projectId) return [];
     const list: UnifiedCashflowItem[] = [];
 
+    const projectClientPayments = clientPayments.filter((cp) => cp.projectId === projectId);
+    const projectVendorPayments = vendorPayments.filter((vp) => vp.projectId === projectId);
+    const projectVendorBills = vendorBills.filter((vb) => vb.projectId === projectId);
+    const projectExpenses = expenses.filter((e) => e.projectId === projectId);
+    const projectCashflowEntries = cashflowEntries.filter((ce) => ce.projectId === projectId);
+
     // 1. Client Payments (IN)
-    clientPayments.forEach((cp) => {
+    projectClientPayments.forEach((cp) => {
       if (cp.status === 'Confirmed') {
         list.push({
           id: `cp-${cp.id}`,
@@ -100,10 +107,10 @@ export function CashflowTab() {
     });
 
     // 2. Vendor Payments (OUT)
-    const billMap = new Map(vendorBills.map((b) => [b.id, b]));
+    const billMap = new Map(projectVendorBills.map((b) => [b.id, b]));
     const vendorMap = new Map(vendors.map((v) => [v.id, v]));
 
-    vendorPayments.forEach((vp) => {
+    projectVendorPayments.forEach((vp) => {
       if (vp.status === 'Confirmed') {
         const bill = billMap.get(vp.billId);
         const v = vendorMap.get(vp.vendorId);
@@ -122,7 +129,7 @@ export function CashflowTab() {
     });
 
     // 3. Project Expenses (OUT)
-    expenses.forEach((exp) => {
+    projectExpenses.forEach((exp) => {
       if (exp.status === 'Approved' || exp.status === 'Paid') {
         list.push({
           id: `exp-${exp.id}`,
@@ -139,7 +146,7 @@ export function CashflowTab() {
     });
 
     // 4. Manual Cashflow entries
-    cashflowEntries.forEach((ce) => {
+    projectCashflowEntries.forEach((ce) => {
       list.push({
         id: ce.id,
         date: ce.date,
@@ -167,7 +174,7 @@ export function CashflowTab() {
     });
 
     return list;
-  }, [clientPayments, vendorPayments, vendorBills, vendors, expenses, cashflowEntries]);
+  }, [projectId, clientPayments, vendorPayments, vendorBills, vendors, expenses, cashflowEntries]);
 
   // Totals
   const totalIn = unifiedEntries.filter((e) => e.type === 'IN').reduce((acc, e) => acc + e.amount, 0);

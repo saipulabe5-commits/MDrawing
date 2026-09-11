@@ -39,16 +39,18 @@ export function ProfitLossTab() {
   }
 
   // 1. Contract Value (Revenue)
-  const approvedQuotation = quotations.find((q) => q.status === 'Approved' || q.status === 'Sent');
+  const approvedQuotation = quotations.find((q) => q.projectId === projectId && (q.status === 'Approved' || q.status === 'Sent'));
   const contractValue = project?.contractValue || approvedQuotation?.grandTotal || 0;
+
+  // Scoped project entities
+  const currentProjectVendors = projectVendors.filter((pv) => pv.projectId === projectId);
+  const currentProjectBills = vendorBills.filter((b) => b.projectId === projectId && b.status !== 'Cancelled' && b.status !== 'Void');
+  const currentProjectExpenses = expenses.filter((e) => e.projectId === projectId && (e.status === 'Approved' || e.status === 'Paid'));
 
   // 2. Cost of Subcontractors (Vendor Cost)
   // Use vendor bills if any, or project vendor contract values
-  const totalVendorBills = vendorBills
-    .filter((b) => b.status !== 'Cancelled' && b.status !== 'Void')
-    .reduce((sum, b) => sum + b.amount, 0);
-
-  const totalVendorContract = projectVendors.reduce((sum, pv) => sum + (pv.contractValue || 0), 0);
+  const totalVendorBills = currentProjectBills.reduce((sum, b) => sum + b.amount, 0);
+  const totalVendorContract = currentProjectVendors.reduce((sum, pv) => sum + (pv.contractValue || 0), 0);
   const totalVendorCost = totalVendorBills > 0 ? totalVendorBills : totalVendorContract;
 
   // 3. Gross Profit
@@ -56,9 +58,7 @@ export function ProfitLossTab() {
   const grossMargin = contractValue > 0 ? (grossProfit / contractValue) * 100 : 0;
 
   // 4. Operating Expenses
-  const totalExpenses = expenses
-    .filter((e) => e.status === 'Approved' || e.status === 'Paid')
-    .reduce((sum, e) => sum + e.amount, 0);
+  const totalExpenses = currentProjectExpenses.reduce((sum, e) => sum + e.amount, 0);
 
   // 5. Net Profit
   const netProfit = grossProfit - totalExpenses;
@@ -193,7 +193,7 @@ export function ProfitLossTab() {
                 2. Beban Pokok Produksi (Subkon & Vendor)
               </span>
               <p className="text-xs text-[var(--color-text-secondary)]">
-                Total kontrak & tagihan pihak ketiga ({projectVendors.length} Subkon)
+                Total kontrak & tagihan pihak ketiga ({currentProjectVendors.length} Subkon)
               </p>
             </div>
             <span className="font-semibold text-base text-rose-600 dark:text-rose-400">
@@ -221,7 +221,7 @@ export function ProfitLossTab() {
                 3. Biaya Operasional Proyek (Project Expenses)
               </span>
               <p className="text-xs text-[var(--color-text-secondary)]">
-                Site visit, printing gambar, konsumsi, transport, ATK ({expenses.length} Item)
+                Site visit, printing gambar, konsumsi, transport, ATK ({currentProjectExpenses.length} Item)
               </p>
             </div>
             <span className="font-semibold text-base text-amber-600 dark:text-amber-400">

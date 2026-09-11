@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onVendorPaymentWrite = exports.onClientPaymentWrite = void 0;
+exports.onClientWrite = exports.onVendorPaymentWrite = exports.onClientPaymentWrite = void 0;
 const functions = require("firebase-functions");
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
@@ -157,6 +157,57 @@ exports.onVendorPaymentWrite = functions.firestore
     for (const billId of billsToSync) {
         await syncVendorBillAuthoritative(billId);
     }
+    return null;
+});
+// Business Rule: Sync client name and email to projects when client profile is updated
+exports.onClientWrite = functions.firestore
+    .document('clients/{clientId}')
+    .onWrite(async (change) => {
+    const clientId = change.after.id || change.before.id;
+    console.log(`[TRIGGER] Processing client write for ${clientId}`);
+    // If client is deleted, we might want to do something, but for now we just care about updates
+    if (!change.after.exists) {
+        console.log(`[TRIGGER] Client ${clientId} was deleted, skipping sync.`);
+        return null;
+    }
+    const beforeData = change.before.exists ? change.before.data() : null;
+    const afterData = change.after.exists ? change.after.data() : null;
+    // Check if relevant fields changed
+    const oldName = beforeData === null || beforeData === void 0 ? void 0 : beforeData.clientName;
+    const newName = afterData === null || afterData === void 0 ? void 0 : afterData.clientName;
+    const oldEmail = beforeData === null || beforeData === void 0 ? void 0 : beforeData.email;
+    const newEmail = afterData === null || afterData === void 0 ? void 0 : afterData.email;
+    if (oldName === newName && oldEmail === newEmail) {
+        console.log(`[TRIGGER] Client ${clientId} name and email unchanged, skipping project sync.`);
+        return null;
+    }
+    console.log(`[TRIGGER] Syncing client ${clientId} details to associated projects...`);
+    // Find all projects with this clientId
+    const projectsSnapshot = await db.collection('projects')
+        .where('clientId', '==', clientId)
+        .get();
+    if (projectsSnapshot.empty) {
+        console.log(`[TRIGGER] No projects found for client ${clientId}`);
+        return null;
+    }
+    const docs = projectsSnapshot.docs;
+    const CHUNK_SIZE = 400;
+    let syncedCount = 0;
+    for (let i = 0; i < docs.length; i += CHUNK_SIZE) {
+        const chunk = docs.slice(i, i + CHUNK_SIZE);
+        const batch = db.batch();
+        chunk.forEach((docSnap) => {
+            const projectRef = db.collection('projects').doc(docSnap.id);
+            batch.update(projectRef, {
+                clientName: newName || '',
+                clientEmail: newEmail || '',
+                updatedAt: new Date().toISOString()
+            });
+        });
+        await batch.commit();
+        syncedCount += chunk.length;
+    }
+    console.log(`[TRIGGER] Successfully synced client details to ${syncedCount} of ${docs.length} project(s) in chunks of ${CHUNK_SIZE}.`);
     return null;
 });
 //# sourceMappingURL=index.js.map

@@ -1,9 +1,14 @@
 import React from 'react';
+import { useParams } from 'react-router-dom';
 import { useFinance } from '../../../context/FinanceContext';
 import { Badge } from '../../../components/ui';
 
 export function AuditLogsTab() {
+  const { id: projectId } = useParams<{ id: string }>();
   const { financialLogs } = useFinance();
+
+  // Strictly filter financial logs by current projectId
+  const projectLogs = financialLogs.filter(log => log.projectId === projectId);
 
   const actionColors: Record<string, 'default'|'success'|'warning'|'danger'|'info'> = {
     'CREATE': 'success',
@@ -17,7 +22,7 @@ export function AuditLogsTab() {
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Financial Audit Log</h2>
-        <p className="text-sm text-[var(--color-text-secondary)]">Rekam jejak setiap perubahan pada dokumen keuangan.</p>
+        <p className="text-sm text-[var(--color-text-secondary)]">Rekam jejak setiap perubahan pada dokumen keuangan proyek ini.</p>
       </div>
 
       <div className="overflow-x-auto">
@@ -32,12 +37,12 @@ export function AuditLogsTab() {
             </tr>
           </thead>
           <tbody>
-            {financialLogs.length === 0 ? (
+            {projectLogs.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-8 text-center text-[var(--color-text-secondary)]">Belum ada aktivitas.</td>
+                <td colSpan={5} className="py-8 text-center text-[var(--color-text-secondary)]">Belum ada aktivitas pada proyek ini.</td>
               </tr>
             ) : (
-              financialLogs.map(log => (
+              projectLogs.map(log => (
                 <tr key={log.id} className="border-b border-[var(--color-border)] hover:bg-[var(--color-bg)]">
                   <td className="py-3 px-4 whitespace-nowrap text-sm text-[var(--color-text-secondary)]">
                     {new Date(log.createdAt).toLocaleString()}
@@ -59,3 +64,4 @@ export function AuditLogsTab() {
     </div>
   );
 }
+

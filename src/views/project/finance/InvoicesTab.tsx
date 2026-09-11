@@ -8,6 +8,7 @@ import { Plus, Send, FileText, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Invoice } from '../../../types';
 import { generateInvoicePdf, generatePiutangReportPdf } from '../../../lib/exportUtils';
+import { normalizeMoney } from '../../../engine/financial/financialEngine';
 
 export function InvoicesTab() {
   const { id: projectId } = useParams<{id: string}>();
@@ -22,34 +23,42 @@ export function InvoicesTab() {
   const [selectedTermId, setSelectedTermId] = useState('');
   const [voidInvoiceId, setVoidInvoiceId] = useState<string | null>(null);
   
-  // Try to find the approved quotation
-  const approvedQuotation = quotations.find(q => q.status === 'Approved');
+  // Scoped to current active project only
+  const projectInvoices = invoices.filter(inv => inv.projectId === projectId);
+  const projectQuotations = quotations.filter(q => q.projectId === projectId);
+  const approvedQuotation = projectQuotations.find(q => q.status === 'Approved');
+  const projectFinanceTerms = financeTerms.filter(t => t.projectId === projectId);
 
   const handleCreate = async () => {
     if (!canEdit) {
       toast.error('Akses ditolak: Anda tidak memiliki wewenang membuat invoice.');
       return;
     }
-    if (!approvedQuotation) {
-      toast.error('Penawaran belum disetujui, tidak bisa buat invoice.');
+    if (!projectId) {
+      toast.error('Project ID aktif tidak valid.');
       return;
     }
-    const term = financeTerms.find(t => t.id === selectedTermId);
+    if (!approvedQuotation || approvedQuotation.projectId !== projectId) {
+      toast.error('Penawaran untuk proyek ini belum disetujui, tidak bisa buat invoice.');
+      return;
+    }
+    const term = projectFinanceTerms.find(t => t.id === selectedTermId && t.projectId === projectId);
     if (!term) {
-      toast.error('Pilih termin terlebih dahulu');
+      toast.error('Pilih termin proyek yang valid');
       return;
     }
 
-    // Hitung nominal invoice
+    // Hitung nominal invoice secara deterministic IDR integer
     let invoiceAmount = 0;
     if (term.amountType === 'Percentage') {
-      invoiceAmount = approvedQuotation.grandTotal * ((term.percentageValue || 0) / 100);
+      invoiceAmount = normalizeMoney(Math.round(approvedQuotation.grandTotal * ((term.percentageValue || 0) / 100)));
     } else {
-      invoiceAmount = term.nominalValue || 0;
+      invoiceAmount = normalizeMoney(Math.round(term.nominalValue || 0));
     }
 
     try {
       await createInvoice({
+        projectId,
         termId: term.id,
         clientId: approvedQuotation.clientId,
         subTotal: invoiceAmount,
@@ -84,7 +93,7 @@ export function InvoicesTab() {
         <div className="flex gap-2">
           <Button 
             variant="secondary" 
-            onClick={() => generatePiutangReportPdf(invoices, [], clients)}
+            onClick={() => generatePiutangReportPdf(projectInvoices, [], clients)}
           >
             <FileText className="w-4 h-4 mr-2" /> Laporan Piutang
           </Button>
@@ -118,13 +127,13 @@ export function InvoicesTab() {
             </tr>
           </thead>
           <tbody>
-            {invoices.length === 0 ? (
+            {projectInvoices.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-[var(--color-text-secondary)]">Belum ada invoice.</td>
+                <td colSpan={7} className="py-8 text-center text-[var(--color-text-secondary)]">Belum ada invoice untuk proyek ini.</td>
               </tr>
             ) : (
-              invoices.map(inv => {
-                const term = financeTerms.find(t => t.id === inv.termId);
+              projectInvoices.map(inv => {
+                const term = projectFinanceTerms.find(t => t.id === inv.termId);
                 return (
                   <tr key={inv.id} className="border-b border-[var(--color-border)] hover:bg-[var(--color-bg)]">
                     <td className="py-3 px-4 font-medium">{inv.invoiceNumber}</td>
@@ -138,7 +147,7 @@ export function InvoicesTab() {
                         <Button variant="ghost" size="icon" title="Lihat PDF" onClick={() => {
                           if (project) {
                             const client = clients.find(c => c.id === project.clientId);
-                            const q = quotations.find(qt => qt.id === approvedQuotation?.id);
+                            const q = projectQuotations.find(qt => qt.id === approvedQuotation?.id);
                             generateInvoicePdf(inv, q, project, client, term?.termName);
                           }
                         }}>
@@ -178,7 +187,7 @@ export function InvoicesTab() {
                 onChange={e => setSelectedTermId(e.target.value)}
                 options={[
                   { value: '', label: 'Pilih termin...' },
-                  ...financeTerms.map(t => ({ value: t.id, label: `${t.termName} - ${t.amountType === 'Percentage' ? t.percentageValue + '%' : 'Rp ' + t.nominalValue}` }))
+                  ...projectFinanceTerms.map(t => ({ value: t.id, label: `${t.termName} - ${t.amountType === 'Percentage' ? t.percentageValue + '%' : 'Rp ' + t.nominalValue}` }))
                 ]}
               />
             </div>

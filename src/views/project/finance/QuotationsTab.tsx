@@ -22,6 +22,9 @@ export function QuotationsTab() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Scoped strictly to current active project only
+  const projectQuotations = quotations.filter((q) => q.projectId === projectId);
+
   const {
     register,
     control,
@@ -154,14 +157,14 @@ export function QuotationsTab() {
             </tr>
           </thead>
           <tbody>
-            {quotations.length === 0 ? (
+            {projectQuotations.length === 0 ? (
               <tr>
                 <td colSpan={5} className="py-8 text-center text-[var(--color-text-secondary)]">
-                  Belum ada penawaran.
+                  Belum ada penawaran untuk proyek ini.
                 </td>
               </tr>
             ) : (
-              quotations.map((q) => (
+              projectQuotations.map((q) => (
                 <tr key={q.id} className="border-b border-[var(--color-border)] hover:bg-[var(--color-bg)]">
                   <td className="py-3 px-4 font-medium">{q.quotationNumber}</td>
                   <td className="py-3 px-4">{new Date(q.date).toLocaleDateString()}</td>

@@ -44,6 +44,10 @@
   /* Dedicated High-Contrast Text Variants for WCAG AA compliance (>= 4.5:1) */
   --color-system-blue-text-light: #0369A1;
   --color-system-blue-text-dark: #7DD3FC;
+  --color-system-green-text-light: #15803D;
+  --color-system-green-text-dark: #4ADE80;
+  --color-system-orange-text-light: #C2410C;
+  --color-system-orange-text-dark: #FB923C;
 
   /* Font Family to mimic macOS San Francisco */
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Inter, sans-serif;
@@ -63,7 +67,9 @@
     --color-accent-blue: var(--color-system-blue);
     --color-accent-blue-text: var(--color-system-blue-text-light);
     --color-accent-green: var(--color-system-green);
+    --color-accent-green-text: var(--color-system-green-text-light);
     --color-accent-orange: var(--color-system-orange);
+    --color-accent-orange-text: var(--color-system-orange-text-light);
     --color-accent-red: var(--color-system-red);
   }
 
@@ -80,7 +86,9 @@
     --color-accent-blue: var(--color-system-blue-dark);
     --color-accent-blue-text: var(--color-system-blue-text-dark);
     --color-accent-green: var(--color-system-green-dark);
+    --color-accent-green-text: var(--color-system-green-text-dark);
     --color-accent-orange: var(--color-system-orange-dark);
+    --color-accent-orange-text: var(--color-system-orange-text-dark);
     --color-accent-red: var(--color-system-red-dark);
   }
 

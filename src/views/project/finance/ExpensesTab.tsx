@@ -36,6 +36,9 @@ export function ExpensesTab() {
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
+  // Scoped strictly to current active project
+  const projectExpenses = expenses.filter((e) => e.projectId === projectId);
+
   // Modal form states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<ProjectExpense | null>(null);
@@ -145,7 +148,7 @@ export function ExpensesTab() {
 
   const handleExportPdf = () => {
     if (!project) return;
-    generateExpenseReportPdf(project, expenses, companySettings);
+    generateExpenseReportPdf(project, projectExpenses, companySettings);
     recordGeneratedDocument({
       projectId: project.id,
       projectName: project.projectName,
@@ -161,18 +164,18 @@ export function ExpensesTab() {
   };
 
   // Filter list
-  const filtered = expenses.filter((e) => {
+  const filtered = projectExpenses.filter((e) => {
     if (filterCategory !== 'ALL' && e.expenseCategory !== filterCategory) return false;
     if (filterStatus !== 'ALL' && e.status !== filterStatus) return false;
     return true;
   });
 
   // Financial calculations
-  const totalApprovedPaid = expenses
+  const totalApprovedPaid = projectExpenses
     .filter((e) => e.status === 'Approved' || e.status === 'Paid')
     .reduce((sum, e) => sum + e.amount, 0);
 
-  const totalAll = expenses
+  const totalAll = projectExpenses
     .filter((e) => e.status !== 'Cancelled')
     .reduce((sum, e) => sum + e.amount, 0);
 
@@ -211,7 +214,7 @@ export function ExpensesTab() {
         <div className="p-4 rounded-xl bg-white/70 dark:bg-white/5 border border-[var(--color-border)] shadow-xs">
           <span className="text-xs text-[var(--color-text-secondary)] font-medium">Total Item Pengeluaran</span>
           <p className="text-xl font-bold text-[var(--color-text-primary)] mt-1">
-            {expenses.length} Transaksi
+            {projectExpenses.length} Transaksi
           </p>
           <span className="text-[11px] text-[var(--color-text-secondary)]">
             Total tercatat: Rp {totalAll.toLocaleString('id-ID')}

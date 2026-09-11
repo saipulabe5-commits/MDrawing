@@ -43,6 +43,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let unsubUser: (() => void) | null = null;
     let hasAlertedDeactivation = false;
 
+    // Safety watchdog timeout to prevent infinite loading screen on network hiccups
+    const watchdogTimer = setTimeout(() => {
+      setLoading((prev) => {
+        if (prev) {
+          console.warn("[AUTH] Auth loading timeout reached. Falling back to loaded state.");
+          return false;
+        }
+        return prev;
+      });
+    }, 6000);
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       // Clean up previous user snapshot listener if any
       if (unsubUser) {
@@ -184,6 +195,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => {
+      clearTimeout(watchdogTimer);
       if (unsubUser) unsubUser();
       unsubscribe();
     };

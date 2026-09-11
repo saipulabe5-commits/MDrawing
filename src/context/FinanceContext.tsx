@@ -450,8 +450,9 @@ export const FinanceProvider: React.FC<{ projectId: string; children: React.Reac
   const createPayment = async (data: Partial<ClientPayment>) => {
     if (!canEditFinance || !projectId || !appUser) throw new Error("Permission denied");
     
+    const docNumber = await generateDocumentNumber('payment');
+
     return await runTransaction(db, async (transaction) => {
-      const docNumber = await generateDocumentNumber('payment');
       const docRef = doc(collection(db, 'clientPayments'));
       const paymentAmount = normalizeMoney(data.amount);
 
@@ -462,6 +463,9 @@ export const FinanceProvider: React.FC<{ projectId: string; children: React.Reac
         const invSnap = await transaction.get(invRef);
         if (invSnap.exists()) {
           invoiceData = invSnap.data() as Invoice;
+          if (invoiceData.projectId !== projectId) {
+            throw new Error(`Integritas Proyek Terlanggar: Invoice milik proyek (${invoiceData.projectId}) berbeda dengan proyek aktif (${projectId}).`);
+          }
           const currentPaid = normalizeMoney(invoiceData.paidAmount || invoiceData.amountPaid);
           const valResult = validateClientPaymentMutation(
             paymentAmount,
@@ -471,6 +475,8 @@ export const FinanceProvider: React.FC<{ projectId: string; children: React.Reac
           if (!valResult.isValid) {
             throw new Error(valResult.error || "Validasi pembayaran gagal.");
           }
+        } else {
+          throw new Error("Invoice yang dipilih tidak ditemukan.");
         }
       }
 

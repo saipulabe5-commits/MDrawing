@@ -212,21 +212,26 @@ export const onClientWrite = functions.firestore
       return null;
     }
 
-    const batch = db.batch();
-    let count = 0;
+    const docs = projectsSnapshot.docs;
+    const CHUNK_SIZE = 400;
+    let syncedCount = 0;
 
-    projectsSnapshot.forEach((docSnap: any) => {
-      const projectRef = db.collection('projects').doc(docSnap.id);
-      batch.update(projectRef, {
-        clientName: newName || '',
-        clientEmail: newEmail || '',
-        updatedAt: new Date().toISOString()
+    for (let i = 0; i < docs.length; i += CHUNK_SIZE) {
+      const chunk = docs.slice(i, i + CHUNK_SIZE);
+      const batch = db.batch();
+      chunk.forEach((docSnap: any) => {
+        const projectRef = db.collection('projects').doc(docSnap.id);
+        batch.update(projectRef, {
+          clientName: newName || '',
+          clientEmail: newEmail || '',
+          updatedAt: new Date().toISOString()
+        });
       });
-      count++;
-    });
+      await batch.commit();
+      syncedCount += chunk.length;
+    }
 
-    await batch.commit();
-    console.log(`[TRIGGER] Successfully synced client details to ${count} project(s).`);
+    console.log(`[TRIGGER] Successfully synced client details to ${syncedCount} of ${docs.length} project(s) in chunks of ${CHUNK_SIZE}.`);
 
     return null;
   });

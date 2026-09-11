@@ -8,6 +8,32 @@ import { db } from '../lib/firebase';
 import { DrawingItem } from '../types';
 import { calculateProjectProgress } from '../engine/projectProgressEngine';
 
+class ChartErrorBoundary extends React.Component<{ children: React.ReactNode; fallbackText?: string }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode; fallbackText?: string }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error) {
+    console.warn('Chart render error caught by ChartErrorBoundary:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="h-[300px] w-full flex items-center justify-center border-2 border-dashed border-[var(--color-border)] rounded-xl">
+          <p className="text-sm text-[var(--color-text-secondary)]">{this.props.fallbackText || 'Tidak dapat memuat visualisasi grafik'}</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export function DashboardView() {
   const { projects, loadingProjects } = useProjects();
   const [allItems, setAllItems] = useState<DrawingItem[]>([]);
@@ -104,9 +130,10 @@ export function DashboardView() {
     const projectProgressData = activeProjects.map(p => {
       const pItems = allItems.filter(i => i.projectId === p.id);
       const avgProgress = calculateProjectProgress(pItems as any);
+      const safeProgress = Number.isFinite(avgProgress) ? Math.max(0, Math.min(100, Math.round(avgProgress))) : 0;
       return {
-        name: p.projectName.substring(0, 15) + (p.projectName.length > 15 ? '...' : ''),
-        progress: avgProgress
+        name: p.projectName ? (p.projectName.length > 15 ? p.projectName.substring(0, 15) + '...' : p.projectName) : 'Proyek',
+        progress: safeProgress
       };
     }).sort((a, b) => b.progress - a.progress);
 
@@ -200,33 +227,35 @@ export function DashboardView() {
             </div>
           ) : stats.itemsStatusData.length > 0 ? (
             <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={stats.itemsStatusData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {stats.itemsStatusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'var(--color-surface)', 
-                      borderColor: 'var(--color-border)', 
-                      borderRadius: '0.75rem',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)' 
-                    }}
-                    itemStyle={{ color: 'var(--color-text-primary)', fontWeight: 600 }}
-                  />
-                  <Legend wrapperStyle={{ color: 'var(--color-text-primary)', fontSize: '12px', fontWeight: 500 }} />
-                </PieChart>
-              </ResponsiveContainer>
+              <ChartErrorBoundary fallbackText="Grafik distribusi status tidak dapat dimuat">
+                <ResponsiveContainer width="100%" height="100%" minHeight={300} initialDimension={{ width: 400, height: 300 }}>
+                  <PieChart>
+                    <Pie
+                      data={stats.itemsStatusData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {stats.itemsStatusData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'var(--color-surface)', 
+                        borderColor: 'var(--color-border)', 
+                        borderRadius: '0.75rem',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)' 
+                      }}
+                      itemStyle={{ color: 'var(--color-text-primary)', fontWeight: 600 }}
+                    />
+                    <Legend wrapperStyle={{ color: 'var(--color-text-primary)', fontSize: '12px', fontWeight: 500 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </ChartErrorBoundary>
             </div>
           ) : (
             <div className="h-[300px] w-full flex items-center justify-center border-2 border-dashed border-[var(--color-border)] rounded-xl">
@@ -243,28 +272,30 @@ export function DashboardView() {
             </div>
           ) : stats.projectProgressData.length > 0 ? (
             <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.projectProgressData} layout="vertical" margin={{ left: 20, right: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--color-border)" />
-                  <XAxis type="number" domain={[0, 100]} stroke="var(--color-text-secondary)" fontSize={12} />
-                  <YAxis type="category" dataKey="name" stroke="var(--color-text-primary)" fontSize={12} width={100} tick={{ fill: 'var(--color-text-primary)', fontWeight: 500 }} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'var(--color-surface)', 
-                      borderColor: 'var(--color-border)', 
-                      borderRadius: '0.75rem',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.1)' 
-                    }}
-                    itemStyle={{ color: 'var(--color-text-primary)', fontWeight: 600 }}
-                    cursor={{fill: 'var(--color-border)', opacity: 0.2}}
-                  />
-                  <Bar dataKey="progress" fill="var(--color-accent-blue)" radius={[0, 4, 4, 0]} barSize={20}>
-                    {stats.projectProgressData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.progress === 100 ? 'var(--color-accent-green)' : 'var(--color-accent-blue)'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              <ChartErrorBoundary fallbackText="Grafik progress proyek tidak dapat dimuat">
+                <ResponsiveContainer width="100%" height="100%" minHeight={300} initialDimension={{ width: 400, height: 300 }}>
+                  <BarChart data={stats.projectProgressData} layout="vertical" margin={{ left: 20, right: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--color-border)" />
+                    <XAxis type="number" domain={[0, 100]} stroke="var(--color-text-secondary)" fontSize={12} />
+                    <YAxis type="category" dataKey="name" stroke="var(--color-text-primary)" fontSize={12} width={100} tick={{ fill: 'var(--color-text-primary)', fontWeight: 500 }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'var(--color-surface)', 
+                        borderColor: 'var(--color-border)', 
+                        borderRadius: '0.75rem',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)' 
+                      }}
+                      itemStyle={{ color: 'var(--color-text-primary)', fontWeight: 600 }}
+                      cursor={{fill: 'var(--color-border)', opacity: 0.2}}
+                    />
+                    <Bar dataKey="progress" fill="var(--color-accent-blue)" radius={[0, 4, 4, 0]} barSize={20}>
+                      {stats.projectProgressData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.progress === 100 ? 'var(--color-accent-green)' : 'var(--color-accent-blue)'} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartErrorBoundary>
             </div>
           ) : (
             <div className="h-[300px] w-full flex items-center justify-center border-2 border-dashed border-[var(--color-border)] rounded-xl">

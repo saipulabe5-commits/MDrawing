@@ -1,15 +1,142 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    function isSignedIn() {
-      return request.auth != null;
-    }
-    
-    // Allow authenticated users to read and upload attachments/evidence up to 50MB
+
+    // Default Deny All
     match /{allPaths=**} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() 
-        && request.resource.size < 50 * 1024 * 1024;
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------
+    // ZERO-TRUST STORAGE SECURITY HELPERS
+    // -------------------------------------------------------------
+    
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function getUserDoc() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasOwnerCustomClaim() {
+      return request.auth.token.role == "OWNER"
+        && firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && getUserDoc().get('role', '') == "OWNER";
+    }
+
+    function getPrincipalRole() {
+      return firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        ? getUserDoc().get('role', 'VIEWER')
+        : (request.auth.token.role == "OWNER" ? "OWNER" : "VIEWER");
+    }
+
+    function isPrincipalActive() {
+      return firestore.exists(/databases/(default)/documents/users/$(request.auth.uid))
+        && getUserDoc().get('isActive', false) == true;
+    }
+
+    function isOwnerOrAdmin() {
+      let role = getPrincipalRole();
+      return role in ["OWNER", "ADMIN"];
+    }
+
+    function isCompanyWideFinanceRole() {
+      let role = getPrincipalRole();
+      return role in ["OWNER", "ADMIN"];
+    }
+
+    function isAssignedToProject(projId) {
+      let userDoc = getUserDoc();
+      let assigned = userDoc.get('assignedProjectIds', []);
+      let projDoc = firestore.get(/databases/(default)/documents/projects/$(projId)).data;
+      return (projId in assigned)
+        || projDoc.get('projectLeaderId', '') == request.auth.uid
+        || (request.auth.token.email != null && projDoc.get('projectLeaderEmail', '') == request.auth.token.email)
+        || projDoc.get('members', []).hasAny([request.auth.uid]);
+    }
+
+    function canAccessProjectForRead(projId) {
+      return isOwnerOrAdmin() || isAssignedToProject(projId);
+    }
+
+    function canAccessProjectForWrite(projId) {
+      return isOwnerOrAdmin() || (getPrincipalRole() == "PROJECT_LEADER" && isAssignedToProject(projId)) || (getPrincipalRole() == "TEAM" && isAssignedToProject(projId));
+    }
+
+    function canViewFinanceForProject(projId) {
+      return isCompanyWideFinanceRole() 
+        || (getUserDoc().get('canViewFinance', false) == true && isAssignedToProject(projId));
+    }
+
+    function canEditFinanceForProject(projId) {
+      return isCompanyWideFinanceRole() 
+        || (getUserDoc().get('canEditFinance', false) == true && isAssignedToProject(projId));
+    }
+
+    function canManageTransmittalForProject(projId) {
+      return isOwnerOrAdmin()
+        || getUserDoc().get('canManageTransmittal', false) == true
+        || (getPrincipalRole() == "PROJECT_LEADER" && isAssignedToProject(projId));
+    }
+
+    // -------------------------------------------------------------
+    // PROJECT-AWARE STORAGE PATH ENFORCEMENT
+    // -------------------------------------------------------------
+
+    // 1. Drawing attachments & revisions (projects/{projectId}/drawings/{fileName})
+    match /projects/{projectId}/drawings/{fileName} {
+      allow read: if isSignedIn() && isPrincipalActive() && canAccessProjectForRead(projectId);
+      allow create, update: if isSignedIn() && isPrincipalActive() && canAccessProjectForWrite(projectId)
+        && request.resource.size < 100 * 1024 * 1024 // Max 100MB
+        && request.resource.contentType.matches('^(application/pdf|application/acad|application/x-acad|application/autocad_dwg|image/.*|application/zip|application/x-zip-compressed|application/octet-stream)$');
+      allow delete: if isSignedIn() && isPrincipalActive() && (isOwnerOrAdmin() || (getPrincipalRole() == "PROJECT_LEADER" && isAssignedToProject(projectId)));
+    }
+
+    // 2. Finance documents & receipts (projects/{projectId}/finance/{fileName})
+    match /projects/{projectId}/finance/{fileName} {
+      allow read: if isSignedIn() && isPrincipalActive() && canViewFinanceForProject(projectId);
+      allow create, update: if isSignedIn() && isPrincipalActive() && canEditFinanceForProject(projectId)
+        && request.resource.size < 50 * 1024 * 1024 // Max 50MB
+        && request.resource.contentType.matches('^(application/pdf|image/.*|application/vnd.openxmlformats-officedocument.spreadsheetml.sheet|application/vnd.ms-excel|text/csv)$');
+      allow delete: if isSignedIn() && isPrincipalActive() && (isOwnerOrAdmin() || (getPrincipalRole() == "FINANCE" && isCompanyWideFinanceRole()));
+    }
+
+    // 3. Vendor attachments & bills (projects/{projectId}/vendor/{fileName})
+    match /projects/{projectId}/vendor/{fileName} {
+      allow read: if isSignedIn() && isPrincipalActive() && canViewFinanceForProject(projectId);
+      allow create, update: if isSignedIn() && isPrincipalActive() && canEditFinanceForProject(projectId)
+        && request.resource.size < 50 * 1024 * 1024 // Max 50MB
+        && request.resource.contentType.matches('^(application/pdf|image/.*|application/vnd.openxmlformats-officedocument.spreadsheetml.sheet|application/vnd.ms-excel|text/csv)$');
+      allow delete: if isSignedIn() && isPrincipalActive() && (isOwnerOrAdmin() || (getPrincipalRole() == "FINANCE" && isCompanyWideFinanceRole()));
+    }
+
+    // 4. Transmittal packages & signed slips (projects/{projectId}/transmittals/{fileName})
+    match /projects/{projectId}/transmittals/{fileName} {
+      allow read: if isSignedIn() && isPrincipalActive() && canAccessProjectForRead(projectId);
+      allow create, update: if isSignedIn() && isPrincipalActive() && canManageTransmittalForProject(projectId)
+        && request.resource.size < 100 * 1024 * 1024 // Max 100MB
+        && request.resource.contentType.matches('^(application/pdf|image/.*|application/zip|application/x-zip-compressed)$');
+      allow delete: if isSignedIn() && isPrincipalActive() && isOwnerOrAdmin();
+    }
+
+    // 5. User avatars (users/{userId}/avatar/{fileName})
+    match /users/{userId}/avatar/{fileName} {
+      allow read: if isSignedIn() && isPrincipalActive();
+      allow write: if isSignedIn() && isPrincipalActive() 
+        && (request.auth.uid == userId || isOwnerOrAdmin())
+        && request.resource.size < 10 * 1024 * 1024 // Max 10MB
+        && request.resource.contentType.matches('^image/.*$');
+      allow delete: if isSignedIn() && isPrincipalActive() && (request.auth.uid == userId || isOwnerOrAdmin());
+    }
+
+    // 6. Company branding/logos (company/{fileName})
+    match /company/{fileName} {
+      allow read: if isSignedIn() && isPrincipalActive();
+      allow write: if isSignedIn() && isPrincipalActive() && isOwnerOrAdmin()
+        && request.resource.size < 10 * 1024 * 1024 // Max 10MB
+        && request.resource.contentType.matches('^image/.*$');
+      allow delete: if isSignedIn() && isPrincipalActive() && isOwnerOrAdmin();
     }
   }
 }

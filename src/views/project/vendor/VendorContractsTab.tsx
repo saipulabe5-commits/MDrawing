@@ -34,6 +34,9 @@ export function VendorContractsTab({ projectId }: VendorContractsTabProps) {
   const canManage = canManageFinance();
   const canSeeCost = canViewVendorCost();
 
+  // Scoped strictly to current active project
+  const currentProjectVendors = projectVendors.filter(p => p.projectId === projectId);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [contractToDelete, setContractToDelete] = useState<{ id: string; name: string } | null>(null);
@@ -148,7 +151,7 @@ export function VendorContractsTab({ projectId }: VendorContractsTabProps) {
     }
   };
 
-  const totalContractValue = projectVendors.reduce((acc, curr) => acc + (curr.contractValue || 0), 0);
+  const totalContractValue = currentProjectVendors.reduce((acc, curr) => acc + (curr.contractValue || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -186,10 +189,10 @@ export function VendorContractsTab({ projectId }: VendorContractsTabProps) {
       </div>
 
       {/* Contracts List */}
-      {projectVendors.length === 0 ? (
+      {currentProjectVendors.length === 0 ? (
         <div className="p-12 text-center bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] space-y-3">
           <Briefcase className="w-12 h-12 mx-auto text-[var(--color-text-secondary)] opacity-40" />
-          <h3 className="text-base font-semibold text-[var(--color-text-primary)]">Belum ada kontrak vendor</h3>
+          <h3 className="text-base font-semibold text-[var(--color-text-primary)]">Belum ada kontrak vendor pada proyek ini</h3>
           <p className="text-sm text-[var(--color-text-secondary)] max-w-sm mx-auto">
             Tambahkan vendor yang terlibat dalam pekerjaan proyek ini beserta nilai kontrak dan lingkup kerjanya.
           </p>
@@ -201,7 +204,7 @@ export function VendorContractsTab({ projectId }: VendorContractsTabProps) {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {projectVendors.map((pv) => {
+          {currentProjectVendors.map((pv) => {
             const currentStatusObj = WORK_STATUSES.find(s => s.value === pv.workStatus) || WORK_STATUSES[0];
             const StatusIcon = currentStatusObj.icon;
 

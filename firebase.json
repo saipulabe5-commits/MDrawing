@@ -9,6 +9,9 @@
     {
       "source": "functions",
       "codebase": "default",
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ],
       "ignore": [
         "node_modules",
         ".git",
@@ -17,5 +20,18 @@
         "*.local"
       ]
     }
-  ]
+  ],
+  "emulators": {
+    "firestore": {
+      "port": 8888,
+      "host": "127.0.0.1"
+    },
+    "storage": {
+      "port": 8999,
+      "host": "127.0.0.1"
+    },
+    "ui": {
+      "enabled": false
+    }
+  }
 }

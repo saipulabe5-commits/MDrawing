@@ -135,23 +135,47 @@ export function DrawingProvider({ projectId, children }: { projectId: string; ch
   const deleteGroup = async (id: string, deleteItems: boolean) => {
     if (!canManageProjects()) throw new Error("Unauthorized");
     try {
-      const batch = writeBatch(db);
-      batch.delete(doc(db, "drawingGroups", id));
-      
       const groupItems = items.filter(i => i.groupId === id);
+      const ops: Array<() => void> = [];
+      const chunkSize = 400;
+
+      // Collect all operations
+      const allOps: Array<{ type: 'delete' | 'update'; ref: any; data?: any }> = [
+        { type: 'delete', ref: doc(db, "drawingGroups", id) }
+      ];
+
       groupItems.forEach(item => {
         if (deleteItems) {
-          batch.update(doc(db, "drawingItems", item.id), { isDeleted: true, updatedAt: new Date().toISOString() });
+          allOps.push({
+            type: 'update',
+            ref: doc(db, "drawingItems", item.id),
+            data: { isDeleted: true, updatedAt: new Date().toISOString() }
+          });
         } else {
-          batch.update(doc(db, "drawingItems", item.id), { groupId: null, updatedAt: new Date().toISOString() });
+          allOps.push({
+            type: 'update',
+            ref: doc(db, "drawingItems", item.id),
+            data: { groupId: null, updatedAt: new Date().toISOString() }
+          });
         }
       });
-      
-      await batch.commit();
+
+      let committedOps = 0;
+      for (let i = 0; i < allOps.length; i += chunkSize) {
+        const chunk = allOps.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        chunk.forEach(op => {
+          if (op.type === 'delete') batch.delete(op.ref);
+          else batch.update(op.ref, op.data);
+        });
+        await batch.commit();
+        committedOps += chunk.length;
+      }
+
       toast.success("Grup berhasil dihapus");
-    } catch (error) {
+    } catch (error: any) {
       handleFirestoreError(error, OperationType.DELETE, `drawingGroups/${id}`);
-      toast.error("Gagal menghapus grup");
+      toast.error("Gagal menghapus grup: " + (error?.message || "Terjadi kesalahan"));
     }
   };
 
@@ -250,58 +274,71 @@ export function DrawingProvider({ projectId, children }: { projectId: string; ch
       toast.error("Akses terbatas: Anda tidak memiliki wewenang untuk mengubah data gambar.");
       throw new Error("Unauthorized");
     }
-    try {
-      const batch = writeBatch(db);
-      const now = new Date().toISOString();
-      let updatedCount = 0;
+    const now = new Date().toISOString();
+    let updatedCount = 0;
+    const chunkSize = 400;
 
-      ids.forEach(id => {
-        const item = items.find(i => i.id === id);
-        if (item) {
-          if (isTeam && !canManageProjects()) {
-            if (item.picId && item.picId !== appUser?.uid) {
-              return;
-            }
+    // Filter candidate items
+    const validUpdates: Array<{ id: string; payload: Record<string, any> }> = [];
+    ids.forEach(id => {
+      const item = items.find(i => i.id === id);
+      if (item) {
+        if (isTeam && !canManageProjects()) {
+          if (item.picId && item.picId !== appUser?.uid) {
+            return;
           }
-
-          const newStatus = data.status !== undefined ? data.status : item.status;
-          const newProgress = data.progress !== undefined ? data.progress : item.progress;
-          const synced = syncStatusAndProgress(newStatus, newProgress);
-
-          if (isTeam && !canManageProjects()) {
-            const updatePayload: Record<string, any> = {
-              status: synced.status,
-              progress: synced.progress,
-              updatedAt: now,
-            };
-            if (data.notes !== undefined) {
-              updatePayload.notes = data.notes;
-            }
-            batch.update(doc(db, "drawingItems", id), updatePayload);
-          } else {
-            const updatePayload: Record<string, any> = {
-              ...data,
-              status: synced.status,
-              progress: synced.progress,
-              updatedAt: now,
-            };
-            batch.update(doc(db, "drawingItems", id), updatePayload);
-          }
-          updatedCount++;
         }
-      });
 
-      if (updatedCount === 0) {
-        toast.error("Tidak ada gambar yang dapat diperbarui (periksa hak akses tugas gambar)");
-        return;
+        const newStatus = data.status !== undefined ? data.status : item.status;
+        const newProgress = data.progress !== undefined ? data.progress : item.progress;
+        const synced = syncStatusAndProgress(newStatus, newProgress);
+
+        if (isTeam && !canManageProjects()) {
+          const updatePayload: Record<string, any> = {
+            status: synced.status,
+            progress: synced.progress,
+            updatedAt: now,
+          };
+          if (data.notes !== undefined) {
+            updatePayload.notes = data.notes;
+          }
+          validUpdates.push({ id, payload: updatePayload });
+        } else {
+          const updatePayload: Record<string, any> = {
+            ...data,
+            status: synced.status,
+            progress: synced.progress,
+            updatedAt: now,
+          };
+          validUpdates.push({ id, payload: updatePayload });
+        }
       }
+    });
 
-      await batch.commit();
+    if (validUpdates.length === 0) {
+      toast.error("Tidak ada gambar yang dapat diperbarui (periksa hak akses tugas gambar)");
+      return;
+    }
+
+    try {
+      for (let i = 0; i < validUpdates.length; i += chunkSize) {
+        const chunk = validUpdates.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        chunk.forEach(u => {
+          batch.update(doc(db, "drawingItems", u.id), u.payload);
+        });
+        await batch.commit();
+        updatedCount += chunk.length;
+      }
       toast.success(`${updatedCount} Gambar berhasil diperbarui`);
     } catch (error: any) {
       console.error("Error bulk updating items:", error);
       handleFirestoreError(error, OperationType.UPDATE, "drawingItems (batch)");
-      toast.error(error.message || "Gagal mengupdate gambar secara massal");
+      if (updatedCount > 0) {
+        toast.error(`Perhatian: Hanya ${updatedCount} dari ${validUpdates.length} gambar berhasil diperbarui sebelum terputus: ${error.message}`);
+      } else {
+        toast.error(error.message || "Gagal mengupdate gambar secara massal");
+      }
       throw error;
     }
   };
@@ -336,22 +373,25 @@ export function DrawingProvider({ projectId, children }: { projectId: string; ch
 
   const importItems = async (newGroups: Partial<DrawingGroup>[], newItems: Partial<DrawingItem>[]) => {
     if (!canManageProjects() || !appUser) throw new Error("Unauthorized");
-    try {
-      const batch = writeBatch(db);
-      const now = new Date().toISOString();
-      let addedGroups = 0;
-      let addedItems = 0;
+    const now = new Date().toISOString();
+    const ops: Array<{ type: 'group' | 'item'; ref: any; data: any }> = [];
 
-      newGroups.forEach(g => {
-        const id = g.id!;
-        batch.set(doc(db, "drawingGroups", id), { ...g, projectId, createdAt: now, updatedAt: now });
-        addedGroups++;
+    newGroups.forEach(g => {
+      const id = g.id!;
+      ops.push({
+        type: 'group',
+        ref: doc(db, "drawingGroups", id),
+        data: { ...g, projectId, createdAt: now, updatedAt: now }
       });
+    });
 
-      newItems.forEach(i => {
-        const id = uuidv4();
-        const synced = syncStatusAndProgress(i.status as string, i.progress as number);
-        batch.set(doc(db, "drawingItems", id), {
+    newItems.forEach(i => {
+      const id = uuidv4();
+      const synced = syncStatusAndProgress(i.status as string, i.progress as number);
+      ops.push({
+        type: 'item',
+        ref: doc(db, "drawingItems", id),
+        data: {
           ...i,
           id,
           projectId,
@@ -362,15 +402,36 @@ export function DrawingProvider({ projectId, children }: { projectId: string; ch
           createdBy: appUser.uid,
           createdAt: now,
           updatedAt: now
-        });
-        addedItems++;
+        }
       });
+    });
 
-      await batch.commit();
-      toast.success(`Berhasil mengimpor ${addedItems} gambar dan ${addedGroups} grup`);
-    } catch (error) {
+    const chunkSize = 400;
+    let committedGroups = 0;
+    let committedItems = 0;
+
+    try {
+      for (let i = 0; i < ops.length; i += chunkSize) {
+        const chunk = ops.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        chunk.forEach(op => {
+          batch.set(op.ref, op.data);
+        });
+        await batch.commit();
+        chunk.forEach(op => {
+          if (op.type === 'group') committedGroups++;
+          else committedItems++;
+        });
+      }
+      toast.success(`Berhasil mengimpor ${committedItems} gambar dan ${committedGroups} grup`);
+    } catch (error: any) {
       handleFirestoreError(error, OperationType.CREATE, "import batch");
-      toast.error("Gagal mengimpor gambar");
+      if (committedItems > 0 || committedGroups > 0) {
+        toast.error(`Perhatian: Berhasil sebagian (${committedItems} gambar, ${committedGroups} grup) sebelum gagal: ${error.message}`);
+      } else {
+        toast.error("Gagal mengimpor gambar: " + (error?.message || "Terjadi kesalahan"));
+      }
+      throw error;
     }
   };
 
@@ -391,27 +452,36 @@ export function DrawingProvider({ projectId, children }: { projectId: string; ch
 
   const reorderItems = async (reorderedItems: DrawingItem[]) => {
     if (!canManageProjects()) throw new Error("Unauthorized");
+    const now = new Date().toISOString();
+    const chunkSize = 400;
+    let committed = 0;
+
     try {
-      const batch = writeBatch(db);
-      const now = new Date().toISOString();
-      reorderedItems.forEach((item, index) => {
-        const itemRef = doc(db, "drawingItems", item.id);
-        const updateData: Record<string, any> = {
-          sortOrder: index,
-          updatedAt: now,
-        };
-        if (item.drawingNumber !== undefined) {
-          updateData.drawingNumber = item.drawingNumber;
-        }
-        if (item.groupId !== undefined) {
-          updateData.groupId = item.groupId;
-        }
-        batch.update(itemRef, updateData);
-      });
-      await batch.commit();
-    } catch (error) {
+      for (let i = 0; i < reorderedItems.length; i += chunkSize) {
+        const chunk = reorderedItems.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        chunk.forEach((item, index) => {
+          const actualIndex = i + index;
+          const itemRef = doc(db, "drawingItems", item.id);
+          const updateData: Record<string, any> = {
+            sortOrder: actualIndex,
+            updatedAt: now,
+          };
+          if (item.drawingNumber !== undefined) {
+            updateData.drawingNumber = item.drawingNumber;
+          }
+          if (item.groupId !== undefined) {
+            updateData.groupId = item.groupId;
+          }
+          batch.update(itemRef, updateData);
+        });
+        await batch.commit();
+        committed += chunk.length;
+      }
+    } catch (error: any) {
       handleFirestoreError(error, OperationType.UPDATE, "drawingItems (batch)");
-      toast.error("Gagal menyimpan urutan gambar");
+      toast.error("Gagal menyimpan urutan gambar: " + (error?.message || "Terjadi kesalahan"));
+      throw error;
     }
   };
 
@@ -429,27 +499,34 @@ export function DrawingProvider({ projectId, children }: { projectId: string; ch
       }
 
       const newNumbers = generateSequentialDrawingNumbers(groupItems, group?.groupName);
-      const batch = writeBatch(db);
       const now = new Date().toISOString();
+      const chunkSize = 400;
+      let committed = 0;
 
-      groupItems.forEach((item, index) => {
-        const itemRef = doc(db, "drawingItems", item.id);
-        batch.update(itemRef, {
-          sortOrder: index,
-          drawingNumber: newNumbers[index] || item.drawingNumber,
-          updatedAt: now,
+      for (let i = 0; i < groupItems.length; i += chunkSize) {
+        const chunk = groupItems.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        chunk.forEach((item, index) => {
+          const actualIndex = i + index;
+          const itemRef = doc(db, "drawingItems", item.id);
+          batch.update(itemRef, {
+            sortOrder: actualIndex,
+            drawingNumber: newNumbers[actualIndex] || item.drawingNumber,
+            updatedAt: now,
+          });
         });
-      });
+        await batch.commit();
+        committed += chunk.length;
+      }
 
-      await batch.commit();
       toast.success(
         group
           ? `Nomor gambar grup "${group.groupName}" berhasil diurutkan otomatis (${newNumbers[0]} s/d ${newNumbers[newNumbers.length - 1]})`
           : `Nomor gambar berhasil diurutkan otomatis (${newNumbers[0]} s/d ${newNumbers[newNumbers.length - 1]})`
       );
-    } catch (error) {
+    } catch (error: any) {
       handleFirestoreError(error, OperationType.UPDATE, "drawingItems (batch renumber)");
-      toast.error("Gagal mengurutkan nomor gambar");
+      toast.error("Gagal mengurutkan nomor gambar: " + (error?.message || "Terjadi kesalahan"));
     }
   };
 

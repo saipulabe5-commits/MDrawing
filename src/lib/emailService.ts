@@ -18,6 +18,8 @@ export interface ManualReminderParams {
 
 export interface EmailServiceResponse {
   success: boolean;
+  isSimulated?: boolean;
+  mode?: "SIMULATOR" | "REAL_SMTP";
   message?: string;
   messageId?: string;
   previewUrl?: string | null;

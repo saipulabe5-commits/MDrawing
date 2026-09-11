@@ -12,8 +12,8 @@ import {
   ShieldCheck, ShieldAlert
 } from 'lucide-react';
 import { CompanySettings, BankAccountInfo, PdfTemplate } from '../types';
-import { runExportSecurityTest, ExportSecurityTestResult } from '../security/exportSecurityTest';
-import { runDirtyDozenTestSuite, DirtyDozenSuiteSummary } from '../security/dirtyDozenTest';
+import { runExportSecurityTest, ExportSecurityTestResult } from '../security/exportSecurityEngine';
+import { runDirtyDozenTestSuite, DirtyDozenSuiteSummary } from '../security/dirtyDozenEngine';
 import { UserPermissionsTab } from './settings/UserPermissionsTab';
 import toast from 'react-hot-toast';
 
@@ -349,22 +349,27 @@ export function SettingsView() {
                     disabled={!isAuthorizedToEdit}
                   />
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">
-                    Kota & Kode Pos
-                  </label>
-                  <Input
-                    value={`${companyForm.city}, ${companyForm.postalCode}`}
-                    onChange={(e) => {
-                      const parts = e.target.value.split(',');
-                      setCompanyForm({
-                        ...companyForm,
-                        city: parts[0]?.trim() || '',
-                        postalCode: parts[1]?.trim() || '',
-                      });
-                    }}
-                    disabled={!isAuthorizedToEdit}
-                  />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">
+                      Kota
+                    </label>
+                    <Input
+                      value={companyForm.city || ''}
+                      onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })}
+                      disabled={!isAuthorizedToEdit}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">
+                      Kode Pos
+                    </label>
+                    <Input
+                      value={companyForm.postalCode || ''}
+                      onChange={(e) => setCompanyForm({ ...companyForm, postalCode: e.target.value })}
+                      disabled={!isAuthorizedToEdit}
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-[var(--color-text-secondary)] block mb-1">
@@ -718,7 +723,7 @@ export function SettingsView() {
             </div>
           </div>
 
-          {/* THE DIRTY DOZEN - Master Security Test Suite (12 Skenario Master Prompt) */}
+          {/* REAL FIREBASE SECURITY SUITE (40 Firestore + 6 Cloud Storage Scenarios) */}
           <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--color-border)] pb-4">
               <div className="flex items-center gap-3">
@@ -728,12 +733,12 @@ export function SettingsView() {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-semibold text-[var(--color-text-primary)]">
-                      Security Test Suite: "The Dirty Dozen"
+                      Firebase Rules Security Suite
                     </h3>
-                    <Badge variant="purple">12 Skenario Master Prompt</Badge>
+                    <Badge variant="purple">40 Firestore + 6 Cloud Storage Scenarios</Badge>
                   </div>
                   <p className="text-xs text-[var(--color-text-secondary)]">
-                    Audit komprehensif menguji 12 skenario keamanan Firestore Rules, anti-eskalasi peran, field-level restrictions, dan perlindungan endpoint server.
+                    Audit komprehensif menguji skenario keamanan Firestore Rules, isolasi multi-proyek, anti-eskalasi peran, integritas finansial, dan pembatasan Cloud Storage.
                   </p>
                 </div>
               </div>
@@ -745,7 +750,7 @@ export function SettingsView() {
                 disabled={isRunningDirtyDozen}
               >
                 <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isRunningDirtyDozen ? 'animate-spin' : ''}`} />
-                {isRunningDirtyDozen ? 'Menguji Skenario Keamanan...' : 'Jalankan Dirty Dozen Suite'}
+                {isRunningDirtyDozen ? 'Menguji Skenario Keamanan...' : 'Jalankan Verifikasi Keamanan'}
               </Button>
             </div>
 
@@ -756,10 +761,10 @@ export function SettingsView() {
                     <CheckCircle className="w-5 h-5 text-emerald-500" />
                     <div>
                       <span className="text-xs font-semibold text-[var(--color-text-primary)] block">
-                        Hasil Uji Keamanan Dirty Dozen: {dirtyDozenResult.passedCount} dari {dirtyDozenResult.totalTests} Skenario Lolos (PASSED)
+                        Hasil Uji Keamanan: {dirtyDozenResult.passedCount} dari {dirtyDozenResult.totalTests} Skenario Lolos (PASSED)
                       </span>
                       <span className="text-[11px] text-[var(--color-text-secondary)]">
-                        Dijalankan pada {new Date(dirtyDozenResult.executedAt).toLocaleString('id-ID')}
+                        Dijalankan pada {new Date(dirtyDozenResult.executedAt).toLocaleString('id-ID')} | CLI Source: <code className="font-mono text-emerald-600 dark:text-emerald-400">npm run test:security:emulator</code> (46 Real Scenarios)
                       </span>
                     </div>
                   </div>
@@ -796,7 +801,7 @@ export function SettingsView() {
               </div>
             ) : (
               <p className="text-xs text-[var(--color-text-secondary)] italic">
-                Klik tombol "Jalankan Dirty Dozen Suite" untuk memverifikasi seluruh skenario keamanan Firestore Rules & Server.
+                Klik tombol "Jalankan Verifikasi Keamanan" untuk memverifikasi skenario keamanan Firestore Rules & Server. Skenario lengkap 36 pengujian dapat dijalankan via CLI: <code className="font-mono text-blue-500">npm run test:security:emulator</code>.
               </p>
             )}
           </div>
@@ -806,10 +811,10 @@ export function SettingsView() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--color-border)] pb-4">
               <div>
                 <h3 className="text-base font-semibold text-[var(--color-text-primary)]">
-                  Verifikasi Audit Mesin Redaksi Keamanan
+                  Verifikasi Mesin Redaksi & Export Security Scanner
                 </h3>
                 <p className="text-xs text-[var(--color-text-secondary)]">
-                  Jalankan uji validasi unit test untuk memverifikasi kehandalan deteksi pola kredensial sensitif.
+                  Jalankan uji validasi unit test Level A (deteksi pola) dan Level B (pemindaian artefak ekspor riil).
                 </p>
               </div>
 
@@ -855,7 +860,7 @@ export function SettingsView() {
               </div>
             ) : (
               <p className="text-xs text-[var(--color-text-secondary)] italic">
-                Klik tombol "Jalankan Audit Keamanan" untuk menguji mesin redaksi kredensial secara live.
+                Klik tombol "Jalankan Audit Keamanan" untuk menguji mesin redaksi kredensial. Pemindaian artefak riil dapat dijalankan via CLI: <code className="font-mono text-blue-500">npx tsx src/security/exportSecurityTest.ts</code>.
               </p>
             )}
           </div>

@@ -25,8 +25,11 @@ export function BudgetVsActualTab() {
   const project = projects.find((p) => p.id === projectId);
   const totalBudget = project?.budgetOtherExpenses || 0;
 
+  // Strict project scoping
+  const projectExpenses = expenses.filter((e) => e.projectId === projectId);
+
   // Realized expenses (Approved or Paid)
-  const approvedExpenses = expenses.filter((e) => e.status === 'Approved' || e.status === 'Paid');
+  const approvedExpenses = projectExpenses.filter((e) => e.status === 'Approved' || e.status === 'Paid');
   const totalActual = approvedExpenses.reduce((sum, e) => sum + e.amount, 0);
 
   const overallPct = totalBudget > 0 ? (totalActual / totalBudget) * 100 : 0;

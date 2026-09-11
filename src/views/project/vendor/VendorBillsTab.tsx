@@ -44,6 +44,11 @@ export function VendorBillsTab({ projectId, onPayBill }: VendorBillsTabProps) {
   const canSeeCost = canViewVendorCost();
   const canVoid = canVoidFinanceTransaction();
 
+  // Scoped strictly to current active project
+  const currentProjectVendors = projectVendors.filter(p => p.projectId === projectId);
+  const currentProjectVendorBills = vendorBills.filter(b => b.projectId === projectId);
+  const currentProjectVendorPaymentTerms = vendorPaymentTerms.filter(t => t.projectId === projectId);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Void modal state
@@ -73,14 +78,14 @@ export function VendorBillsTab({ projectId, onPayBill }: VendorBillsTabProps) {
   });
 
   const currentProjectVendorId = watch('projectVendorId');
-  const availableTerms = vendorPaymentTerms.filter(t => t.projectVendorId === currentProjectVendorId);
+  const availableTerms = currentProjectVendorPaymentTerms.filter(t => t.projectVendorId === currentProjectVendorId);
 
   const handleOpenAdd = () => {
     if (!canManage) {
       toast.error('Akses terbatas: Anda tidak memiliki wewenang menerbitkan tagihan vendor.');
       return;
     }
-    const defaultPv = projectVendors[0];
+    const defaultPv = currentProjectVendors[0];
     reset({
       projectVendorId: defaultPv ? defaultPv.id : '',
       vendorId: defaultPv ? defaultPv.vendorId : '',
@@ -94,7 +99,7 @@ export function VendorBillsTab({ projectId, onPayBill }: VendorBillsTabProps) {
   };
 
   const handleContractChange = (pvId: string) => {
-    const pv = projectVendors.find(p => p.id === pvId);
+    const pv = currentProjectVendors.find(p => p.id === pvId);
     setValue('projectVendorId', pvId, { shouldValidate: true });
     setValue('vendorId', pv ? pv.vendorId : '', { shouldValidate: true });
     setValue('termId', '', { shouldValidate: true });
@@ -117,7 +122,7 @@ export function VendorBillsTab({ projectId, onPayBill }: VendorBillsTabProps) {
   };
 
   const handleDownloadPdf = (bill: VendorBill) => {
-    const pv = projectVendors.find(p => p.id === bill.projectVendorId);
+    const pv = currentProjectVendors.find(p => p.id === bill.projectVendorId);
     const v = vendors.find(item => item.id === bill.vendorId);
     generateVendorBillPdf(bill, pv, v, currentProject || undefined);
     toast.success('Mengunduh PDF Tagihan Vendor...');
@@ -159,11 +164,11 @@ export function VendorBillsTab({ projectId, onPayBill }: VendorBillsTabProps) {
         </div>
 
         <Button 
-          disabled={!canManage || projectVendors.length === 0}
+          disabled={!canManage || currentProjectVendors.length === 0}
           title={
             !canManage 
               ? "Akses terbatas: Memerlukan izin Kelola Keuangan (Finance / Admin / Owner)" 
-              : projectVendors.length === 0 
+              : currentProjectVendors.length === 0 
                 ? "Tambahkan vendor kontrak terlebih dahulu di tab Kontrak Vendor" 
                 : undefined
           }
@@ -176,14 +181,14 @@ export function VendorBillsTab({ projectId, onPayBill }: VendorBillsTabProps) {
       </div>
 
       {/* Bills List */}
-      {vendorBills.length === 0 ? (
+      {currentProjectVendorBills.length === 0 ? (
         <div className="p-12 text-center bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] space-y-3">
           <FileText className="w-12 h-12 mx-auto text-[var(--color-text-secondary)] opacity-40" />
           <h3 className="text-base font-semibold text-[var(--color-text-primary)]">Belum ada tagihan vendor</h3>
           <p className="text-sm text-[var(--color-text-secondary)] max-w-sm mx-auto">
             Terbitkan tagihan baru atau generate otomatis dari tab Termin Bayar ketika pekerjaan vendor mencapai progres target.
           </p>
-          {canManage && projectVendors.length > 0 && (
+          {canManage && currentProjectVendors.length > 0 && (
             <Button onClick={handleOpenAdd} className="mt-2">
               Terbitkan Tagihan Pertama
             </Button>
@@ -191,8 +196,8 @@ export function VendorBillsTab({ projectId, onPayBill }: VendorBillsTabProps) {
         </div>
       ) : (
         <div className="space-y-3">
-          {vendorBills.map((bill) => {
-            const pv = projectVendors.find(p => p.id === bill.projectVendorId);
+          {currentProjectVendorBills.map((bill) => {
+            const pv = currentProjectVendors.find(p => p.id === bill.projectVendorId);
             const statusConfig = BILL_STATUS_CONFIG[bill.status] || BILL_STATUS_CONFIG.Draft;
             const isOverdue = bill.remainingAmount > 0 && bill.dueDate && new Date(bill.dueDate) < new Date() && !['Void', 'Cancelled', 'Paid'].includes(bill.status);
 
@@ -308,7 +313,7 @@ export function VendorBillsTab({ projectId, onPayBill }: VendorBillsTabProps) {
               onChange={(e) => handleContractChange(e.target.value)}
               className="w-full px-3 py-2 text-sm bg-transparent border border-[var(--color-border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-blue)] text-[var(--color-text-primary)]"
             >
-              {projectVendors.map(pv => (
+              {currentProjectVendors.map(pv => (
                 <option key={pv.id} value={pv.id} className="bg-[var(--color-surface)] text-[var(--color-text-primary)]">
                   {pv.vendorName} - {pv.scopeOfWork} (Total: Rp {pv.contractValue.toLocaleString('id-ID')})
                 </option>
@@ -329,7 +334,7 @@ export function VendorBillsTab({ projectId, onPayBill }: VendorBillsTabProps) {
                 onChange={(e) => {
                   const tId = e.target.value;
                   const chosenTerm = availableTerms.find(t => t.id === tId);
-                  const pv = projectVendors.find(p => p.id === currentProjectVendorId);
+                  const pv = currentProjectVendors.find(p => p.id === currentProjectVendorId);
                   setValue('termId', tId);
                   if (chosenTerm && pv) {
                     const autoAmount = chosenTerm.amountType === 'Percentage'

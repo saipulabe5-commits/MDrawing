@@ -500,7 +500,7 @@ export function DrawingTemplateProvider({ children }: { children: React.ReactNod
         return;
       }
 
-      const batch = writeBatch(db);
+      const ops: Array<{ type: 'set' | 'update' | 'delete'; ref: any; data?: any }> = [];
       const now = new Date().toISOString();
 
       let currentGroupOffset = 0;
@@ -513,11 +513,11 @@ export function DrawingTemplateProvider({ children }: { children: React.ReactNod
         ]);
 
         existingGroupsSnap.docs.forEach((d) => {
-          batch.delete(d.ref);
+          ops.push({ type: 'delete', ref: d.ref });
         });
 
         existingItemsSnap.docs.forEach((d) => {
-          batch.update(d.ref, { isDeleted: true, updatedAt: now });
+          ops.push({ type: 'update', ref: d.ref, data: { isDeleted: true, updatedAt: now } });
         });
       } else {
         const [existingGroupsSnap, existingItemsSnap] = await Promise.all([
@@ -545,7 +545,7 @@ export function DrawingTemplateProvider({ children }: { children: React.ReactNod
           createdAt: now,
           updatedAt: now,
         };
-        batch.set(doc(db, "drawingGroups", newGroupId), newGroupDoc);
+        ops.push({ type: 'set', ref: doc(db, "drawingGroups", newGroupId), data: newGroupDoc });
       });
 
       tplItems.sort((a, b) => a.sortOrder - b.sortOrder);
@@ -571,24 +571,44 @@ export function DrawingTemplateProvider({ children }: { children: React.ReactNod
           createdAt: now,
           updatedAt: now,
         };
-        batch.set(doc(db, "drawingItems", newItemId), newItemDoc);
+        ops.push({ type: 'set', ref: doc(db, "drawingItems", newItemId), data: newItemDoc });
       });
 
       // Audit log
       const tpl = templates.find((t) => t.id === templateId);
       const logRef = doc(collection(db, "activityLogs"));
-      batch.set(logRef, {
-        entityType: "PROJECT",
-        entityId: projectId,
-        action: "UPDATE",
-        userId: appUser.uid,
-        userName: appUser.name || appUser.email,
-        userRole: appUser.role,
-        details: `Menerapkan template gambar "${tpl?.templateName || templateId}" (Strategi: ${strategy}).`,
-        createdAt: now,
+      ops.push({
+        type: 'set',
+        ref: logRef,
+        data: {
+          entityType: "PROJECT",
+          entityId: projectId,
+          action: "UPDATE",
+          userId: appUser.uid,
+          userName: appUser.name || appUser.email,
+          userRole: appUser.role,
+          details: `Menerapkan template gambar "${tpl?.templateName || templateId}" (Strategi: ${strategy}).`,
+          createdAt: now,
+        }
       });
 
-      await batch.commit();
+      // Commit operations in safe batches of 400 (under Firestore's 500 limit)
+      const chunkSize = 400;
+      for (let i = 0; i < ops.length; i += chunkSize) {
+        const chunk = ops.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        chunk.forEach((op) => {
+          if (op.type === 'set') {
+            batch.set(op.ref, op.data);
+          } else if (op.type === 'update') {
+            batch.update(op.ref, op.data);
+          } else if (op.type === 'delete') {
+            batch.delete(op.ref);
+          }
+        });
+        await batch.commit();
+      }
+
       toast.success(`Template berhasil diterapkan (${tplGroups.length} grup, ${tplItems.length} gambar)!`);
     } catch (err: any) {
       console.error("Gagal menerapkan template:", err);
@@ -613,7 +633,7 @@ export function DrawingTemplateProvider({ children }: { children: React.ReactNod
     try {
       const templateId = uuidv4();
       const now = new Date().toISOString();
-      const batch = writeBatch(db);
+      const ops: Array<{ type: 'set'; ref: any; data: any }> = [];
 
       const templateDoc: DrawingTemplate = {
         id: templateId,
@@ -627,7 +647,7 @@ export function DrawingTemplateProvider({ children }: { children: React.ReactNod
         createdAt: now,
         updatedAt: now,
       };
-      batch.set(doc(db, "drawingTemplates", templateId), templateDoc);
+      ops.push({ type: 'set', ref: doc(db, "drawingTemplates", templateId), data: templateDoc });
 
       const groupMap = new Map<string, string>();
       projectGroups.forEach((g, idx) => {
@@ -643,7 +663,7 @@ export function DrawingTemplateProvider({ children }: { children: React.ReactNod
           createdAt: now,
           updatedAt: now,
         };
-        batch.set(doc(db, "drawingTemplateGroups", newTplGroupId), tplGroup);
+        ops.push({ type: 'set', ref: doc(db, "drawingTemplateGroups", newTplGroupId), data: tplGroup });
       });
 
       projectItems.forEach((item, idx) => {
@@ -662,22 +682,33 @@ export function DrawingTemplateProvider({ children }: { children: React.ReactNod
           createdAt: now,
           updatedAt: now,
         };
-        batch.set(doc(db, "drawingTemplateItems", newTplItemId), tplItem);
+        ops.push({ type: 'set', ref: doc(db, "drawingTemplateItems", newTplItemId), data: tplItem });
       });
 
       const logRef = doc(collection(db, "activityLogs"));
-      batch.set(logRef, {
-        entityType: "DRAWING_TEMPLATE",
-        entityId: templateId,
-        action: "CREATE",
-        userId: appUser.uid,
-        userName: appUser.name || appUser.email,
-        userRole: appUser.role,
-        details: `Menyimpan template baru "${templateName}" (${projectGroups.length} grup, ${projectItems.length} gambar) dari proyek.`,
-        createdAt: now,
+      ops.push({
+        type: 'set',
+        ref: logRef,
+        data: {
+          entityType: "DRAWING_TEMPLATE",
+          entityId: templateId,
+          action: "CREATE",
+          userId: appUser.uid,
+          userName: appUser.name || appUser.email,
+          userRole: appUser.role,
+          details: `Menyimpan template baru "${templateName}" (${projectGroups.length} grup, ${projectItems.length} gambar) dari proyek.`,
+          createdAt: now,
+        },
       });
 
-      await batch.commit();
+      const chunkSize = 400;
+      for (let i = 0; i < ops.length; i += chunkSize) {
+        const chunk = ops.slice(i, i + chunkSize);
+        const batch = writeBatch(db);
+        chunk.forEach((op) => batch.set(op.ref, op.data));
+        await batch.commit();
+      }
+
       toast.success(`Template "${templateName}" berhasil disimpan!`);
       return templateId;
     } catch (err: any) {

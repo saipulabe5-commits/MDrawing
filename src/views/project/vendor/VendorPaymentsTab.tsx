@@ -44,6 +44,12 @@ export function VendorPaymentsTab({
   const canManage = canManageFinance();
   const canSeePayment = canViewVendorPayment();
 
+  // Scoped strictly to current active project
+  const currentProjectVendors = projectVendors.filter(p => p.projectId === projectId);
+  const projectBills = vendorBills.filter(b => b.projectId === projectId);
+  const projectPayments = vendorPayments.filter(p => p.projectId === projectId);
+  const activeBills = projectBills.filter(b => !['Void', 'Cancelled'].includes(b.status));
+
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const {
@@ -90,7 +96,7 @@ export function VendorPaymentsTab({
       toast.error('Akses terbatas: Anda tidak memiliki wewenang mencatat pembayaran vendor.');
       return;
     }
-    const defaultBill = vendorBills.find(b => b.remainingAmount > 0 && !['Void', 'Cancelled'].includes(b.status)) || vendorBills[0];
+    const defaultBill = projectBills.find(b => b.remainingAmount > 0 && !['Void', 'Cancelled'].includes(b.status)) || projectBills[0];
     reset({
       billId: defaultBill ? defaultBill.id : '',
       paymentDate: new Date().toISOString().split('T')[0],
@@ -105,7 +111,7 @@ export function VendorPaymentsTab({
   };
 
   const handleBillSelect = (billId: string) => {
-    const selected = vendorBills.find(b => b.id === billId);
+    const selected = projectBills.find(b => b.id === billId);
     if (selected) {
       setValue('billId', selected.id, { shouldValidate: true });
       setValue('amount', selected.remainingAmount > 0 ? selected.remainingAmount : selected.amount, { shouldValidate: true });
@@ -120,7 +126,7 @@ export function VendorPaymentsTab({
     }
 
     try {
-      const selectedBill = vendorBills.find(b => b.id === data.billId);
+      const selectedBill = projectBills.find(b => b.id === data.billId);
       await createVendorPayment({
         ...data,
         projectVendorId: selectedBill?.projectVendorId,
@@ -136,7 +142,7 @@ export function VendorPaymentsTab({
   };
 
   const handleDownloadReceipt = (payment: VendorPayment) => {
-    const bill = vendorBills.find(b => b.id === payment.billId);
+    const bill = projectBills.find(b => b.id === payment.billId);
     const vendor = vendors.find(v => v.id === payment.vendorId);
     generateVendorPaymentReceiptPdf(payment, bill, vendor, currentProject || undefined);
     toast.success('Mengunduh Bukti Pengeluaran Kas...');
@@ -152,8 +158,6 @@ export function VendorPaymentsTab({
       toast.error(err.message || 'Gagal mengubah status');
     }
   };
-
-  const activeBills = vendorBills.filter(b => !['Void', 'Cancelled'].includes(b.status));
 
   return (
     <div className="space-y-6">
@@ -186,10 +190,10 @@ export function VendorPaymentsTab({
       </div>
 
       {/* Payments List */}
-      {vendorPayments.length === 0 ? (
+      {projectPayments.length === 0 ? (
         <div className="p-12 text-center bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] space-y-3">
           <Receipt className="w-12 h-12 mx-auto text-[var(--color-text-secondary)] opacity-40" />
-          <h3 className="text-base font-semibold text-[var(--color-text-primary)]">Belum ada realisasi pembayaran vendor</h3>
+          <h3 className="text-base font-semibold text-[var(--color-text-primary)]">Belum ada realisasi pembayaran vendor untuk proyek ini</h3>
           <p className="text-sm text-[var(--color-text-secondary)] max-w-sm mx-auto">
             Catat bukti transfer atau pengeluaran kas setelah tagihan vendor diverifikasi dan dibayarkan.
           </p>
@@ -201,10 +205,10 @@ export function VendorPaymentsTab({
         </div>
       ) : (
         <div className="space-y-3">
-          {vendorPayments.map((payment) => {
-            const bill = vendorBills.find(b => b.id === payment.billId);
+          {projectPayments.map((payment) => {
+            const bill = projectBills.find(b => b.id === payment.billId);
             const vendor = vendors.find(v => v.id === payment.vendorId);
-            const pv = projectVendors.find(p => p.id === payment.projectVendorId);
+            const pv = currentProjectVendors.find(p => p.id === payment.projectVendorId);
 
             return (
               <Card key={payment.id} className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -302,7 +306,7 @@ export function VendorPaymentsTab({
               className="w-full px-3 py-2 text-sm bg-transparent border border-[var(--color-border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-blue)] text-[var(--color-text-primary)]"
             >
               {activeBills.map(b => {
-                const pv = projectVendors.find(p => p.id === b.projectVendorId);
+                const pv = currentProjectVendors.find(p => p.id === b.projectVendorId);
                 return (
                   <option key={b.id} value={b.id} className="bg-[var(--color-surface)] text-[var(--color-text-primary)]">
                     {b.billNumber} - {pv?.vendorName} (Sisa: Rp {b.remainingAmount.toLocaleString('id-ID')})

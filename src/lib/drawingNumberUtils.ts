@@ -39,7 +39,7 @@ export function generateSequentialDrawingNumbers(
         const parsed = matching.map(n => {
           const rest = n.slice(groupCode.length);
           const digitMatch = rest.match(/^([-_./]?)(\d+)$/);
-          if (digitMatch) {
+          if (digitMatch && digitMatch[2]) {
             return {
               separator: digitMatch[1] || '',
               digits: digitMatch[2],
@@ -51,7 +51,7 @@ export function generateSequentialDrawingNumbers(
         }).filter(Boolean);
 
         if (parsed.length > 0) {
-          const separator = parsed[0]!.separator;
+          const separator = parsed[0]?.separator || '';
           prefix = `${groupCode}${separator}`;
           const nums = parsed.map(p => p!.num);
           const pads = parsed.map(p => p!.pad);
@@ -69,9 +69,9 @@ export function generateSequentialDrawingNumbers(
     // Generic pattern detection: match (prefix)(digits)
     const genericParsed = existingNumbers.map(n => {
       const m = n.match(/^(.*?)(\d+)$/);
-      if (m) {
+      if (m && m[2]) {
         return {
-          prefix: m[1],
+          prefix: m[1] ?? '',
           digits: m[2],
           num: parseInt(m[2], 10),
           pad: m[2].length
@@ -84,17 +84,22 @@ export function generateSequentialDrawingNumbers(
       // Find most common prefix
       const prefixCounts: Record<string, number> = {};
       genericParsed.forEach(p => {
-        prefixCounts[p!.prefix] = (prefixCounts[p!.prefix] || 0) + 1;
+        if (p?.prefix !== undefined) {
+          prefixCounts[p.prefix] = (prefixCounts[p.prefix] || 0) + 1;
+        }
       });
-      const topPrefix = Object.keys(prefixCounts).reduce((a, b) => prefixCounts[a] > prefixCounts[b] ? a : b);
+      const keys = Object.keys(prefixCounts);
+      const topPrefix = keys.length > 0 
+        ? keys.reduce((a, b) => prefixCounts[a] > prefixCounts[b] ? a : b)
+        : '';
       
       const relevant = genericParsed.filter(p => p!.prefix === topPrefix);
       const nums = relevant.map(p => p!.num);
       const pads = relevant.map(p => p!.pad);
 
       prefix = topPrefix;
-      startNum = Math.min(...nums);
-      padLength = Math.max(...pads, 2);
+      startNum = nums.length > 0 ? Math.min(...nums) : 1;
+      padLength = pads.length > 0 ? Math.max(...pads, 2) : 2;
 
       return items.map((_, idx) => {
         const currentNum = startNum + idx;

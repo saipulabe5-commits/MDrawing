@@ -13,6 +13,28 @@ interface ProjectRevisionViewProps {
   search: string;
 }
 
+function safeFormatDistance(dateStr?: string | number | Date | null): string {
+  if (!dateStr) return '-';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '-';
+    return formatDistanceToNow(d, { addSuffix: true, locale: id });
+  } catch {
+    return '-';
+  }
+}
+
+function safeLocaleDate(dateStr?: string | number | Date | null): string {
+  if (!dateStr) return '-';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleString('id-ID');
+  } catch {
+    return '-';
+  }
+}
+
 export function ProjectRevisionView({ search }: ProjectRevisionViewProps) {
   const { items, revisions, groups } = useDrawings();
   const [subView, setSubView] = useState<'matrix' | 'log'>('matrix');
@@ -399,7 +421,7 @@ export function ProjectRevisionView({ search }: ProjectRevisionViewProps) {
                       </div>
                       <div className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)]">
                         <Clock className="w-3 h-3" />
-                        {formatDistanceToNow(new Date(rev.createdAt), { addSuffix: true, locale: id })}
+                        {safeFormatDistance(rev.createdAt)}
                       </div>
                     </div>
                     <div className="text-xs text-[var(--color-text-primary)] mt-2.5 p-3 bg-black/5 dark:bg-white/5 rounded-xl border border-[var(--color-border)] leading-relaxed">
@@ -413,7 +435,7 @@ export function ProjectRevisionView({ search }: ProjectRevisionViewProps) {
                       <span>&bull;</span>
                       <span className="flex items-center gap-1 font-mono">
                         <Calendar className="w-3 h-3 text-[var(--color-text-secondary)]" />
-                        {new Date(rev.createdAt).toLocaleString('id-ID')}
+                        {safeLocaleDate(rev.createdAt)}
                       </span>
                     </div>
                   </div>

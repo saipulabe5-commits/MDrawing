@@ -56,90 +56,79 @@ export function FinancialAuditLogView() {
     }
 
     setLoading(true);
-    let q;
+    let unsubscribe: () => void;
+
     if (isCompanyWide) {
-      q = query(
+      const q = query(
         collection(db, 'financialAuditLogs'),
         orderBy('createdAt', 'desc'),
         limit(300)
+      );
+
+      unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          const fetched = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as FinancialAuditLog[];
+          setLogs(fetched);
+          setLoading(false);
+        },
+        (error) => {
+          console.warn('Error fetching financial audit logs:', error.message);
+          setLoading(false);
+        }
       );
     } else {
-      q = query(
-        collection(db, 'financialAuditLogs'),
-        where('projectId', 'in', assignedProjectIds.slice(0, 30)),
-        orderBy('createdAt', 'desc'),
-        limit(300)
-      );
+      // Chunk project IDs in slices of 30 to respect Firestore limitations
+      const chunkSize = 30;
+      const chunks: string[][] = [];
+      for (let i = 0; i < assignedProjectIds.length; i += chunkSize) {
+        chunks.push(assignedProjectIds.slice(i, i + chunkSize));
+      }
+
+      const chunkResults = new Map<number, FinancialAuditLog[]>();
+      const unsubs: Array<() => void> = [];
+
+      chunks.forEach((chunk, index) => {
+        const q = query(
+          collection(db, 'financialAuditLogs'),
+          where('projectId', 'in', chunk),
+          orderBy('createdAt', 'desc'),
+          limit(100)
+        );
+
+        const unsub = onSnapshot(
+          q,
+          (snapshot) => {
+            const fetched = snapshot.docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            })) as FinancialAuditLog[];
+            chunkResults.set(index, fetched);
+
+            const aggregated: FinancialAuditLog[] = [];
+            chunkResults.forEach((items) => aggregated.push(...items));
+            aggregated.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            setLogs(aggregated);
+            setLoading(false);
+          },
+          (error) => {
+            console.warn(`Error fetching financial audit logs for chunk ${index}:`, error.message);
+            setLoading(false);
+          }
+        );
+        unsubs.push(unsub);
+      });
+
+      unsubscribe = () => unsubs.forEach(u => u());
     }
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const fetched = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as FinancialAuditLog[];
-
-        if (fetched.length === 0) {
-          // Provide clean sample initial audit records
-          const sampleLogs: FinancialAuditLog[] = [
-            {
-              id: 'fin-audit-1',
-              projectId: projects[0]?.id || 'proj-1',
-              transactionType: 'Invoice',
-              transactionId: 'INV/2026/09/001',
-              action: 'UPDATE',
-              userId: appUser?.uid || 'user-1',
-              userName: appUser?.name || 'Saipul (Owner)',
-              userRole: 'OWNER',
-              oldValue: { status: 'Sent', paidAmount: 0 },
-              newValue: { status: 'Partial Paid', paidAmount: 25000000 },
-              reason: 'Penerimaan pembayaran termin 1 via Transfer BCA',
-              createdAt: new Date(Date.now() - 3600000 * 3).toISOString(),
-            },
-            {
-              id: 'fin-audit-2',
-              projectId: projects[0]?.id || 'proj-1',
-              transactionType: 'Quotation',
-              transactionId: 'QUO/2026/09/001',
-              action: 'APPROVE',
-              userId: appUser?.uid || 'user-1',
-              userName: 'Finance Manager',
-              userRole: 'ADMIN',
-              oldValue: { status: 'Sent', approvedByClient: false },
-              newValue: { status: 'Approved', approvedByClient: true },
-              reason: 'Penawaran harga disetujui resmi oleh Klien',
-              createdAt: new Date(Date.now() - 3600000 * 20).toISOString(),
-            },
-            {
-              id: 'fin-audit-3',
-              projectId: projects[0]?.id || 'proj-1',
-              transactionType: 'VendorBill',
-              transactionId: 'VBILL/2026/09/002',
-              action: 'CREATE',
-              userId: appUser?.uid || 'user-1',
-              userName: 'Lead Engineer',
-              userRole: 'PROJECT_LEADER',
-              oldValue: null,
-              newValue: { billNumber: 'VBILL/2026/09/002', amount: 12000000, vendorName: 'PT Struktur Presisi' },
-              reason: 'Tagihan gambar struktur termin pondasi',
-              createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
-            },
-          ];
-          setLogs(sampleLogs);
-        } else {
-          setLogs(fetched);
-        }
-        setLoading(false);
-      },
-      (error) => {
-        console.warn('Error fetching financial audit logs:', error.message);
-        setLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [canAccess, projects, appUser, isCompanyWide, assignedProjectIds]);
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [canAccess, isCompanyWide, assignedProjectIds]);
 
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {

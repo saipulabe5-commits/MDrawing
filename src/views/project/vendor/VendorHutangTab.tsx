@@ -20,9 +20,14 @@ export function VendorHutangTab({ projectId }: VendorHutangTabProps) {
   const canSeeCost = canViewVendorCost();
   const canExport = canExportFinanceReport();
 
+  // Scoped strictly to current active project
+  const currentProjectVendors = projectVendors.filter(pv => pv.projectId === projectId);
+  const currentProjectBills = vendorBills.filter(b => b.projectId === projectId);
+  const currentProjectPayments = vendorPayments.filter(p => p.projectId === projectId);
+
   // Metrics calculations
-  const totalContract = projectVendors.reduce((acc, pv) => acc + (pv.contractValue || 0), 0);
-  const activeBills = vendorBills.filter(b => !['Void', 'Cancelled'].includes(b.status));
+  const totalContract = currentProjectVendors.reduce((acc, pv) => acc + (pv.contractValue || 0), 0);
+  const activeBills = currentProjectBills.filter(b => !['Void', 'Cancelled'].includes(b.status));
   const totalBilled = activeBills.reduce((acc, b) => acc + (b.amount || 0), 0);
   const totalPaid = activeBills.reduce((acc, b) => acc + (b.paidAmount || 0), 0);
   const totalOutstanding = Math.max(0, totalBilled - totalPaid);
@@ -46,9 +51,9 @@ export function VendorHutangTab({ projectId }: VendorHutangTabProps) {
     generateHutangReportPdf(
       currentProject,
       vendors,
-      projectVendors,
+      currentProjectVendors,
       activeBills,
-      vendorPayments
+      currentProjectPayments
     );
     toast.success('Mengunduh Laporan Hutang Vendor (PDF)...');
   };
@@ -95,7 +100,7 @@ export function VendorHutangTab({ projectId }: VendorHutangTabProps) {
             {canSeeCost ? `Rp ${totalContract.toLocaleString('id-ID')}` : 'Terkunci'}
           </p>
           <span className="text-[11px] text-[var(--color-text-secondary)]">
-            {projectVendors.length} Kontrak rekanan
+            {currentProjectVendors.length} Kontrak rekanan
           </span>
         </Card>
 
@@ -174,14 +179,14 @@ export function VendorHutangTab({ projectId }: VendorHutangTabProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-border)] text-[var(--color-text-primary)]">
-              {projectVendors.length === 0 ? (
+              {currentProjectVendors.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-8 text-center text-[var(--color-text-secondary)]">
                     Belum ada data rekanan vendor pada proyek ini.
                   </td>
                 </tr>
               ) : (
-                projectVendors.map((pv) => {
+                currentProjectVendors.map((pv) => {
                   const pvBills = activeBills.filter(b => b.projectVendorId === pv.id);
                   const pvBilled = pvBills.reduce((acc, b) => acc + b.amount, 0);
                   const pvPaid = pvBills.reduce((acc, b) => acc + b.paidAmount, 0);

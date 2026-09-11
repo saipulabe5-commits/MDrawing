@@ -23,7 +23,6 @@ export const NON_NEGOTIABLE_ZERO_BILLING = {
 export const PERMITTED_FREE_TIER_MODELS = [
   "gemini-3.8-flash",
   "gemini-3.1-flash-lite",
-  "gemini-flash-latest",
 ] as const;
 
 /**
