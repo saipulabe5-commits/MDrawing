@@ -155,14 +155,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const userData = docSnap.data() as AppUser;
           setAppUser(userData);
 
-          // Real-time deactivation enforcement: any account with isActive: false is signed out
+          // If account is inactive, notify user and let routing handle navigation to /access-denied
+          // Do NOT call auth.signOut() here, so that:
+          // 1. User sees /access-denied with their email and clear activation instructions.
+          // 2. Realtime listener automatically redirects user to dashboard when Owner activates them!
           if (!userData.isActive) {
             if (!hasAlertedDeactivation) {
               hasAlertedDeactivation = true;
-              toast.error("Akun Anda saat ini belum aktif atau telah dinonaktifkan oleh Administrator.", { id: "account-deactivated-toast" });
+              toast.error("Akun Anda saat ini belum aktif. Silakan hubungi Administrator/Owner untuk aktivasi.", { id: "account-deactivated-toast" });
             }
-            await auth.signOut();
-            return;
           }
 
           // Sync theme preference if exists
@@ -191,7 +192,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await signInWithPopup(auth, googleProvider);
     } catch (error: any) {
       console.error("[AUTH ERROR CODE]:", error?.code, "[AUTH ERROR MESSAGE]:", error?.message, error);
-      toast.error(`Gagal login [${error?.code || 'ERROR'}]: ${error?.message || 'Gagal login dengan Google'}`);
+      if (error?.code === 'auth/unauthorized-domain') {
+        toast.error(
+          `Domain ${window.location.hostname} belum diizinkan di Firebase Console. Tambahkan '${window.location.hostname}' ke Firebase Authentication -> Settings -> Authorized Domains.`,
+          { duration: 10000, id: 'unauthorized-domain-toast' }
+        );
+      } else {
+        toast.error(`Gagal login [${error?.code || 'ERROR'}]: ${error?.message || 'Gagal login dengan Google'}`);
+      }
     }
   };
 
