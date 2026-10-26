@@ -516,7 +516,7 @@ export function DrawingTemplatesView() {
                   <Badge variant="default" className="text-xs">
                     {selectedTemplate.projectType || 'Umum'}
                   </Badge>
-                  <Badge variant="primary" className="text-xs font-mono font-bold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
+                  <Badge variant="info" className="text-xs font-mono font-bold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
                     {items.length} Lembar Gambar (No. 1 s/d No. {items.length})
                   </Badge>
                 </div>
