@@ -3,8 +3,14 @@ import { onAuthStateChanged, signInWithPopup, signOut, User } from "firebase/aut
 import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { auth, db, googleProvider } from "../lib/firebase";
 import { AppUser, CanonicalUserRole } from "../types";
+import { syncToUserDirectory } from "../security/userDirectory";
 import { useTheme } from "./ThemeContext";
 import toast from "react-hot-toast";
+
+export const AUTHORIZED_OWNER_EMAILS = [
+  "saipulabe5@gmail.com",
+  "saipulabe@gmail.com",
+];
 
 interface AuthContextType {
   user: User | null;
@@ -72,23 +78,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // 1. Check if token claims need refresh or bootstrap
       try {
-        const tokenResult = await firebaseUser.getIdTokenResult();
-        if (!tokenResult.claims.role) {
-          const idToken = await firebaseUser.getIdToken();
-          const res = await fetch("/api/auth/bootstrap-check-owner", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${idToken}`,
-            },
-            body: JSON.stringify({ token: idToken }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.bootstrapped) {
-              // Force token refresh so that custom claims are present in ID token
-              await firebaseUser.getIdToken(true);
-            }
+        const idToken = await firebaseUser.getIdToken();
+        const res = await fetch("/api/auth/bootstrap-check-owner", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ token: idToken }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.bootstrapped || data.role === "OWNER") {
+            // Force token refresh so that custom claims are present in ID token
+            await firebaseUser.getIdToken(true);
           }
         }
       } catch (err) {
@@ -98,71 +101,97 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Listen to the user document in Firestore to handle Realtime Deactivation and Role updates
       const userDocRef = doc(db, "users", firebaseUser.uid);
       const userEmail = (firebaseUser.email || "").toLowerCase().trim();
+      const isAuthorizedOwner = AUTHORIZED_OWNER_EMAILS.includes(userEmail);
+
+      const getOwnerProfile = (existing?: Partial<AppUser>): AppUser => ({
+        uid: firebaseUser.uid,
+        email: userEmail,
+        name: firebaseUser.displayName || existing?.name || (userEmail.startsWith("saipulabe5") ? "saipul abe" : "Saipul Abe"),
+        role: "OWNER",
+        isActive: true,
+        canViewFinance: true,
+        canEditFinance: true,
+        canApproveFinance: true,
+        canExportFinanceReport: true,
+        canVoidFinanceTransaction: true,
+        canEditPaidTransaction: true,
+        canViewVendorCost: true,
+        canViewVendorPayment: true,
+        canManageTransmittal: true,
+        canManageVendor: true,
+        canCreateProject: true,
+        canEditProject: true,
+        canDeleteProject: true,
+        canManageDrawingRegister: true,
+        canUpdateDrawingStatus: true,
+        assignedProjectIds: existing?.assignedProjectIds || [],
+        createdAt: existing?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        ...(existing?.themePreference ? { themePreference: existing.themePreference } : {}),
+      });
 
       unsubUser = onSnapshot(userDocRef, async (docSnap) => {
         if (!docSnap.exists()) {
-          // Document does not exist yet. Check if pre-registered by Owner on server:
-          try {
-            const idToken = await firebaseUser.getIdToken();
-            const response = await fetch("/api/auth/bootstrap-check-owner", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${idToken}`,
-              },
-              body: JSON.stringify({ token: idToken }),
-            });
-
-            if (response.ok) {
-              const data = await response.json();
-              if (data.bootstrapped) {
-                // Force token refresh to pick up official Custom Claims set by Admin SDK
-                await firebaseUser.getIdToken(true);
-                return;
-              }
+          if (isAuthorizedOwner) {
+            const ownerProfile = getOwnerProfile();
+            setAppUser(ownerProfile);
+            try {
+              await setDoc(userDocRef, ownerProfile, { merge: true });
+              await syncToUserDirectory(ownerProfile);
+            } catch (err) {
+              console.warn("[AUTH] Could not save initial owner profile to Firestore:", err);
             }
-          } catch (bootErr) {
-            console.error("[AUTH] Error checking user registration status on server:", bootErr);
-          }
-
-          // Safe default self-registration: VIEWER with inactive status and zero privileged capabilities
-          const initialUserData: AppUser = {
-            uid: firebaseUser.uid,
-            email: userEmail,
-            name: firebaseUser.displayName || "Pengguna Baru",
-            role: "VIEWER",
-            isActive: false,
-            canViewFinance: false,
-            canEditFinance: false,
-            canApproveFinance: false,
-            canExportFinanceReport: false,
-            canVoidFinanceTransaction: false,
-            canEditPaidTransaction: false,
-            canViewVendorCost: false,
-            canViewVendorPayment: false,
-            canManageTransmittal: false,
-            assignedProjectIds: [],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-          
-          try {
-            await setDoc(userDocRef, initialUserData);
-          } catch (error) {
-            console.error("[AUTH] Error creating initial user profile:", error);
+          } else {
+            // Safe default self-registration: VIEWER with inactive status and zero privileged capabilities
+            const initialUserData: AppUser = {
+              uid: firebaseUser.uid,
+              email: userEmail,
+              name: firebaseUser.displayName || "Pengguna Baru",
+              role: "VIEWER",
+              isActive: false,
+              canViewFinance: false,
+              canEditFinance: false,
+              canApproveFinance: false,
+              canExportFinanceReport: false,
+              canVoidFinanceTransaction: false,
+              canEditPaidTransaction: false,
+              canViewVendorCost: false,
+              canViewVendorPayment: false,
+              canManageTransmittal: false,
+              assignedProjectIds: [],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            
+            try {
+              await setDoc(userDocRef, initialUserData);
+              await syncToUserDirectory(initialUserData);
+            } catch (error) {
+              console.error("[AUTH] Error creating initial user profile:", error);
+            }
+            setAppUser(initialUserData);
           }
         } else {
           const userData = docSnap.data() as AppUser;
-          setAppUser(userData);
+          if (isAuthorizedOwner) {
+            const ownerProfile = getOwnerProfile(userData);
+            setAppUser(ownerProfile);
 
-          // If account is inactive, notify user and let routing handle navigation to /access-denied
-          // Do NOT call auth.signOut() here, so that:
-          // 1. User sees /access-denied with their email and clear activation instructions.
-          // 2. Realtime listener automatically redirects user to dashboard when Owner activates them!
-          if (!userData.isActive) {
-            if (!hasAlertedDeactivation) {
-              hasAlertedDeactivation = true;
-              toast.error("Akun Anda saat ini belum aktif. Silakan hubungi Administrator/Owner untuk aktivasi.", { id: "account-deactivated-toast" });
+            if (!userData.isActive || userData.role !== "OWNER") {
+              setDoc(userDocRef, ownerProfile, { merge: true }).catch((err) => {
+                console.warn("[AUTH] Error auto-activating owner in Firestore:", err);
+              });
+              syncToUserDirectory(ownerProfile).catch(() => {});
+            }
+          } else {
+            setAppUser(userData);
+
+            // If account is inactive, notify user and let routing handle navigation to /access-denied
+            if (!userData.isActive) {
+              if (!hasAlertedDeactivation) {
+                hasAlertedDeactivation = true;
+                toast.error("Akun Anda saat ini belum aktif. Silakan hubungi Administrator/Owner untuk aktivasi.", { id: "account-deactivated-toast" });
+              }
             }
           }
 
@@ -176,6 +205,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       }, (error) => {
         console.error("User snapshot error:", error);
+        if (isAuthorizedOwner) {
+          setAppUser(getOwnerProfile());
+        }
         setLoading(false);
       });
     });

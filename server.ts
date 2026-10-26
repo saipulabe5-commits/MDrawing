@@ -34,10 +34,10 @@ process.on("uncaughtException", (err) => {
 
 // Helper to normalize Firestore Database ID
 function normalizeFirestoreDatabaseId(id?: string): string {
-  if (!id) return "(default)";
+  if (!id) return "default";
   const trimmed = id.trim();
-  if (trimmed === "" || trimmed === "default" || trimmed === "(default)") {
-    return "(default)";
+  if (trimmed === "" || trimmed === "default") {
+    return "default";
   }
   return trimmed;
 }
@@ -93,7 +93,7 @@ let adminDb: Firestore | null = null;
 
 // Module-level project and database identifiers (accessible to all handlers and REST helpers)
 let projectId = process.env.FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || "";
-let firestoreDatabaseId = "(default)";
+let firestoreDatabaseId = process.env.MDRAWING_FIRESTORE_DATABASE_ID || "default";
 
 try {
   // Check for MDRAWING_FIREBASE_CONFIG or FIREBASE_CONFIG or firebase-applet-config.json
@@ -165,7 +165,7 @@ try {
 // This allows cryptographically sound authorization in managed AI Studio environments where Service Account keys cannot be generated.
 async function fetchUserDocViaRest(uid: string, bearerToken: string): Promise<Record<string, any> | null> {
   const normDb = normalizeFirestoreDatabaseId(firestoreDatabaseId);
-  const dbCandidates = normDb !== "(default)" ? [normDb, "(default)"] : ["(default)"];
+  const dbCandidates = normDb !== "default" ? [normDb, "default"] : ["default", "(default)"];
   for (const dbId of dbCandidates) {
     try {
       const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${dbId}/documents/users/${uid}`;
@@ -451,18 +451,103 @@ async function startServer() {
       return res.status(401).json({ error: "Token otentikasi tidak boleh kosong." });
     }
 
-    if (!firebaseAdminApp || !adminDb) {
+    if (!firebaseAdminApp) {
       return res.status(500).json({
-        error: "Firebase Admin SDK belum diinisialisasi. Konfigurasikan FIREBASE_SERVICE_ACCOUNT_KEY terlebih dahulu.",
-        code: "ADMIN_SDK_NOT_INITIALIZED",
+        error: "Firebase Admin App belum diinisialisasi.",
+        code: "ADMIN_APP_NOT_INITIALIZED",
       });
     }
 
     try {
       const authInstance = getAuth(firebaseAdminApp);
-      const decodedToken = await authInstance.verifyIdToken(token);
+      let decodedToken: any;
+      try {
+        decodedToken = await authInstance.verifyIdToken(token, false);
+      } catch (verifyErr: any) {
+        return res.status(401).json({
+          error: "Token otentikasi tidak valid atau sudah kedaluwarsa.",
+          code: "INVALID_TOKEN",
+        });
+      }
       const uid = decodedToken.uid;
       const email = (decodedToken.email || "").toLowerCase().trim();
+
+      const authorizedOwnerEmails = [
+        "saipulabe5@gmail.com",
+        "saipulabe@gmail.com",
+        (process.env.AUTHORIZED_OWNER_EMAIL || "").toLowerCase().trim(),
+      ].filter(Boolean);
+
+      const isAuthorizedOwner = authorizedOwnerEmails.includes(email);
+
+      // If authorized owner logs in, guarantee immediate active OWNER status
+      if (isAuthorizedOwner) {
+        const ownerClaims = {
+          role: "OWNER",
+          canViewFinance: true,
+          canEditFinance: true,
+          canApproveFinance: true,
+          canExportFinanceReport: true,
+          canVoidFinanceTransaction: true,
+          canEditPaidTransaction: true,
+          canViewVendorCost: true,
+          canViewVendorPayment: true,
+          canManageTransmittal: true,
+        };
+
+        try {
+          await authInstance.setCustomUserClaims(uid, ownerClaims);
+        } catch (claimErr: any) {
+          console.warn("[BOOTSTRAP CLAIMS NOTE]", claimErr?.message || claimErr);
+        }
+
+        if (adminDb) {
+          try {
+            const userRef = adminDb.collection("users").doc(uid);
+            const userSnap = await userRef.get();
+            const existing = userSnap.exists ? userSnap.data() : {};
+            const nowIso = new Date().toISOString();
+
+            const ownerUserData = {
+              uid,
+              email: decodedToken.email || email,
+              name: decodedToken.name || existing?.name || (email.startsWith("saipulabe5") ? "saipul abe" : "Saipul Abe"),
+              role: "OWNER",
+              isActive: true,
+              ...ownerClaims,
+              assignedProjectIds: existing?.assignedProjectIds || [],
+              createdAt: existing?.createdAt || nowIso,
+              updatedAt: nowIso,
+            };
+
+            await userRef.set(ownerUserData, { merge: true });
+
+            await adminDb.collection("systemSettings").doc("bootstrap").set({
+              completed: true,
+              initialOwnerUid: uid,
+              initialOwnerEmail: email,
+              bootstrappedAt: nowIso,
+            }, { merge: true });
+          } catch (dbErr: any) {
+            console.warn("[BOOTSTRAP DB NOTE]", dbErr?.message || dbErr);
+          }
+        }
+
+        return res.status(200).json({
+          success: true,
+          bootstrapped: true,
+          role: "OWNER",
+          isActive: true,
+          message: "Kredensial Owner resmi berhasil diverifikasi.",
+        });
+      }
+
+      if (!adminDb) {
+        return res.status(500).json({
+          error: "Firebase Admin Database belum diinisialisasi. Konfigurasikan FIREBASE_SERVICE_ACCOUNT_KEY terlebih dahulu.",
+          code: "ADMIN_SDK_NOT_INITIALIZED",
+        });
+      }
 
       // Check whether an active OWNER already exists in Firestore users collection
       const ownersSnap = await adminDb
@@ -660,12 +745,6 @@ async function startServer() {
           code: "EMAIL_NOT_VERIFIED",
         });
       }
-
-      // Authorized initial owner email check
-      const authorizedOwnerEmails = [
-        (process.env.AUTHORIZED_OWNER_EMAIL || "").toLowerCase().trim(),
-        "saipulabe5@gmail.com",
-      ].filter(Boolean);
 
       const isAuthorizedToBootstrapOwner = authorizedOwnerEmails.includes(email);
 

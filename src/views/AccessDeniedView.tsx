@@ -19,7 +19,9 @@ export function AccessDeniedView() {
   const handleCheckStatus = () => {
     setChecking(true);
     setTimeout(() => {
-      if (appUser?.isActive) {
+      const email = (user?.email || appUser?.email || "").toLowerCase().trim();
+      const isOwnerEmail = email === "saipulabe5@gmail.com" || email === "saipulabe@gmail.com";
+      if (appUser?.isActive || isOwnerEmail) {
         navigate("/", { replace: true });
       } else {
         window.location.reload();

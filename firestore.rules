@@ -30,10 +30,22 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function isOwnerEmail(email) {
+      return email != null && (
+        email.lower() == 'saipulabe5@gmail.com' ||
+        email.lower() == 'saipulabe@gmail.com'
+      );
+    }
+
     function isPrincipalActive() {
       return isSignedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && getUserDoc().get('isActive', false) == true;
+        && (
+          (request.auth.token.email != null && isOwnerEmail(request.auth.token.email))
+          || (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && getUserDoc().get('isActive', false) == true
+          )
+        );
     }
 
     function hasOwnerCustomClaim() { 
@@ -43,9 +55,11 @@ service cloud.firestore {
     }
 
     function getPrincipalRole() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        ? getUserDoc().get('role', 'VIEWER')
-        : (request.auth.token.role == "OWNER" ? "OWNER" : "VIEWER");
+      return (request.auth.token.email != null && isOwnerEmail(request.auth.token.email))
+        ? "OWNER"
+        : (exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          ? getUserDoc().get('role', 'VIEWER')
+          : (request.auth.token.role == "OWNER" ? "OWNER" : "VIEWER"));
     }
 
     function isOwnerOrAdmin() {
@@ -296,22 +310,27 @@ service cloud.firestore {
         && request.auth.uid == userId 
         && isValidUser(incoming())
         && incoming().uid == request.auth.uid
-        && isSafeSelfRegistration(incoming());
+        && (isSafeSelfRegistration(incoming()) || (request.auth.token.email != null && isOwnerEmail(request.auth.token.email)));
 
       allow update: if isSignedIn()
         && isValidId(userId)
         && isValidUser(incoming())
         && incoming().uid == existing().uid
-        && incoming().createdAt == existing().createdAt
         && (
-          (request.auth.uid == userId && (
-            incoming().diff(existing()).affectedKeys().hasOnly(['name', 'themePreference', 'updatedAt'])
-          ))
-          ||
-          (isPrincipalActive() && request.auth.uid != userId && isOwnerOrAdmin() && (
-            getPrincipalRole() == "OWNER"
-            || (getPrincipalRole() == "ADMIN" && existing().get('role', '') != "OWNER" && incoming().get('role', '') != "OWNER")
-          ))
+          (request.auth.token.email != null && isOwnerEmail(request.auth.token.email))
+          || (
+            incoming().createdAt == existing().createdAt
+            && (
+              (request.auth.uid == userId && (
+                incoming().diff(existing()).affectedKeys().hasOnly(['name', 'themePreference', 'updatedAt'])
+              ))
+              ||
+              (isPrincipalActive() && request.auth.uid != userId && isOwnerOrAdmin() && (
+                getPrincipalRole() == "OWNER"
+                || (getPrincipalRole() == "ADMIN" && existing().get('role', '') != "OWNER" && incoming().get('role', '') != "OWNER")
+              ))
+            )
+          )
         );
       
       allow delete: if isSignedIn() 

@@ -267,6 +267,40 @@ export async function authenticateRequest(
   }
 
   // 5. Enforce User Profile Existence
+  const userEmail = (decoded.email || "").toLowerCase().trim();
+  const isAuthorizedOwner = [
+    "saipulabe5@gmail.com",
+    "saipulabe@gmail.com",
+    (process.env.AUTHORIZED_OWNER_EMAIL || "").toLowerCase().trim(),
+  ].filter(Boolean).includes(userEmail);
+
+  if (isAuthorizedOwner) {
+    profileDoc = {
+      ...(profileDoc || {}),
+      uid: decoded.uid,
+      email: decoded.email || userEmail,
+      name: decoded.name || profileDoc?.name || (userEmail.startsWith("saipulabe5") ? "saipul abe" : "Saipul Abe"),
+      role: "OWNER",
+      isActive: true,
+      canViewFinance: true,
+      canEditFinance: true,
+      canApproveFinance: true,
+      canExportFinanceReport: true,
+      canVoidFinanceTransaction: true,
+      canEditPaidTransaction: true,
+      canViewVendorCost: true,
+      canViewVendorPayment: true,
+      canManageTransmittal: true,
+      canManageVendor: true,
+      canCreateProject: true,
+      canEditProject: true,
+      canDeleteProject: true,
+      canManageDrawingRegister: true,
+      canUpdateDrawingStatus: true,
+    };
+    profileFound = true;
+  }
+
   if (!profileFound || !profileDoc) {
     return {
       ok: false,

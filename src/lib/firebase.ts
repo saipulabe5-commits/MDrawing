@@ -8,8 +8,7 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase services
 export const db = (firebaseConfig as any).firestoreDatabaseId && 
-  (firebaseConfig as any).firestoreDatabaseId !== '(default)' && 
-  (firebaseConfig as any).firestoreDatabaseId !== 'default'
+  (firebaseConfig as any).firestoreDatabaseId !== '(default)'
   ? getFirestore(app, (firebaseConfig as any).firestoreDatabaseId)
   : getFirestore(app);
 export const auth = getAuth(app);
