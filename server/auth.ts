@@ -224,12 +224,8 @@ export async function authenticateRequest(
         profileFound = false;
       }
     } catch (dbErr: any) {
-      const isMissingCredentials =
-        dbErr?.message?.includes("Could not load the default credentials") ||
-        dbErr?.code === 16 ||
-        dbErr?.code === "app/invalid-credential";
-
-      if (isMissingCredentials && deps.fetchUserDocRest) {
+      console.error("[SERVER AUTH DB ERROR]", dbErr?.message || dbErr, "code:", dbErr?.code);
+      if (deps.fetchUserDocRest) {
         adminDbFailedDueToCredentials = true;
       } else {
         // Database failure: MUST NOT fall back to decoded token claims or assume active!

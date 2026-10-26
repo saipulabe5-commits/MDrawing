@@ -32,6 +32,24 @@ process.on("uncaughtException", (err) => {
   console.error("[SERVER ERROR] Uncaught Exception:", err);
 });
 
+// Helper to normalize Firestore Database ID
+function normalizeFirestoreDatabaseId(id?: string): string {
+  if (!id) return "(default)";
+  const trimmed = id.trim();
+  if (trimmed === "" || trimmed === "default" || trimmed === "(default)") {
+    return "(default)";
+  }
+  return trimmed;
+}
+
+// Helper to clean Service Account key object
+function cleanServiceAccountObj(parsed: any) {
+  if (parsed && typeof parsed.private_key === "string") {
+    parsed.private_key = parsed.private_key.replace(/\\n/g, "\n");
+  }
+  return parsed;
+}
+
 // Helper to load Service Account credentials from environment variable
 function getServiceAccountCredential() {
   const rawKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
@@ -42,14 +60,16 @@ function getServiceAccountCredential() {
     const trimmed = rawKey.trim();
     // 1. Direct JSON string
     if (trimmed.startsWith("{")) {
-      const parsed = JSON.parse(trimmed);
+      const parsed = cleanServiceAccountObj(JSON.parse(trimmed));
+      if (!projectId && parsed.project_id) projectId = parsed.project_id;
       return cert(parsed);
     }
     // 2. Base64-encoded JSON string
     try {
       const decoded = Buffer.from(trimmed, "base64").toString("utf-8");
       if (decoded.trim().startsWith("{")) {
-        const parsed = JSON.parse(decoded);
+        const parsed = cleanServiceAccountObj(JSON.parse(decoded));
+        if (!projectId && parsed.project_id) projectId = parsed.project_id;
         return cert(parsed);
       }
     } catch {
@@ -57,7 +77,8 @@ function getServiceAccountCredential() {
     }
     // 3. File path
     if (fs.existsSync(trimmed)) {
-      const fileContent = JSON.parse(fs.readFileSync(trimmed, "utf-8"));
+      const fileContent = cleanServiceAccountObj(JSON.parse(fs.readFileSync(trimmed, "utf-8")));
+      if (!projectId && fileContent.project_id) projectId = fileContent.project_id;
       return cert(fileContent);
     }
   } catch (parseErr: any) {
@@ -81,8 +102,8 @@ try {
     try {
       const cfg = JSON.parse(rawWebConfig.trim());
       if (cfg.projectId) projectId = cfg.projectId;
-      if (cfg.firestoreDatabaseId && cfg.firestoreDatabaseId !== "(default)") {
-        firestoreDatabaseId = cfg.firestoreDatabaseId;
+      if (cfg.firestoreDatabaseId) {
+        firestoreDatabaseId = normalizeFirestoreDatabaseId(cfg.firestoreDatabaseId);
       }
     } catch (e: any) {
       console.warn("[SERVER] Could not parse environment firebase config:", e.message);
@@ -94,8 +115,8 @@ try {
     try {
       const cfg = JSON.parse(fs.readFileSync(configPath, "utf-8"));
       if (cfg.projectId) projectId = cfg.projectId;
-      if (cfg.firestoreDatabaseId && cfg.firestoreDatabaseId !== "(default)") {
-        firestoreDatabaseId = cfg.firestoreDatabaseId;
+      if (cfg.firestoreDatabaseId) {
+        firestoreDatabaseId = normalizeFirestoreDatabaseId(cfg.firestoreDatabaseId);
       }
     } catch (e: any) {
       console.warn("[SERVER] Could not parse firebase-applet-config.json:", e.message);
@@ -124,14 +145,15 @@ try {
   try {
     const saCredential = getServiceAccountCredential();
     if (saCredential || process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-      adminDb = firestoreDatabaseId && firestoreDatabaseId !== "(default)"
+      adminDb = firestoreDatabaseId !== "(default)"
         ? getFirestore(firebaseAdminApp, firestoreDatabaseId)
         : getFirestore(firebaseAdminApp);
     } else {
       console.warn("[SERVER] adminDb is not initialized because FIREBASE_SERVICE_ACCOUNT_KEY is not configured. Secure REST fallback and client SDK will handle data operations.");
       adminDb = null;
     }
-  } catch (dbErr) {
+  } catch (dbErr: any) {
+    console.error("[SERVER] getFirestore initialization failed:", dbErr?.message || dbErr);
     adminDb = null;
   }
   console.log(`[SERVER] Firebase Admin initialized for projectId: ${projectId || "(ambient)"}, databaseId: ${firestoreDatabaseId}`);
@@ -142,7 +164,8 @@ try {
 // Helper to fetch user profile directly via Firestore REST API using the user's verified bearer token.
 // This allows cryptographically sound authorization in managed AI Studio environments where Service Account keys cannot be generated.
 async function fetchUserDocViaRest(uid: string, bearerToken: string): Promise<Record<string, any> | null> {
-  const dbCandidates = [firestoreDatabaseId];
+  const normDb = normalizeFirestoreDatabaseId(firestoreDatabaseId);
+  const dbCandidates = normDb !== "(default)" ? [normDb, "(default)"] : ["(default)"];
   for (const dbId of dbCandidates) {
     try {
       const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${dbId}/documents/users/${uid}`;

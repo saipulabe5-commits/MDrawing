@@ -31,7 +31,7 @@ async function runSeed() {
     try {
       const cfg = JSON.parse(rawWebConfig.trim());
       if (cfg.projectId) projectId = cfg.projectId;
-      if (cfg.firestoreDatabaseId && cfg.firestoreDatabaseId !== "(default)") {
+      if (cfg.firestoreDatabaseId && cfg.firestoreDatabaseId !== "(default)" && cfg.firestoreDatabaseId !== "default") {
         firestoreDatabaseId = cfg.firestoreDatabaseId;
       }
     } catch (e: any) {
@@ -44,7 +44,7 @@ async function runSeed() {
     try {
       const cfg = JSON.parse(fs.readFileSync(configPath, "utf-8"));
       if (cfg.projectId) projectId = cfg.projectId;
-      if (cfg.firestoreDatabaseId && cfg.firestoreDatabaseId !== "(default)") {
+      if (cfg.firestoreDatabaseId && cfg.firestoreDatabaseId !== "(default)" && cfg.firestoreDatabaseId !== "default") {
         firestoreDatabaseId = cfg.firestoreDatabaseId;
       }
     } catch (e: any) {
