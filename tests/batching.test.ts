@@ -1,0 +1,3 @@
+import {it,expect} from 'vitest';
+import { chunkedWriteBatch } from '../src/lib/chunkedWriteBatch';
+it('splits 501 writes and reports a partially committed failure',async()=>{let chunks:number[]=[];const factory=()=>{let n=0;return{set:()=>n++,commit:async()=>{chunks.push(n);}}};const b=chunkedWriteBatch(null,factory);for(let i=0;i<501;i++)b.set(i,{});await b.commit();expect(chunks).toEqual([200,200,101]);let calls=0;const failing=chunkedWriteBatch(null,()=>({set:()=>{},commit:async()=>{if(++calls===2)throw Error('synthetic');}}));for(let i=0;i<401;i++)failing.set(i,{});await expect(failing.commit()).rejects.toThrow('200 dari 401');});

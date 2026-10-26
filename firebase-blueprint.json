@@ -1,0 +1,215 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "App user profile with RBAC and capabilities",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": ["string", "null"] },
+        "name": { "type": ["string", "null"] },
+        "role": { "type": "string", "enum": ["OWNER", "ADMIN", "FINANCE", "PROJECT_LEADER", "TEAM", "VIEWER", "CLIENT_VIEWER"] },
+        "isActive": { "type": "boolean" },
+        "canViewFinance": { "type": "boolean" },
+        "canEditFinance": { "type": "boolean" },
+        "canApproveFinance": { "type": "boolean" },
+        "canViewProfit": { "type": "boolean" },
+        "canViewVendorCost": { "type": "boolean" },
+        "canViewClientInvoice": { "type": "boolean" },
+        "canViewVendorPayment": { "type": "boolean" },
+        "canExportFinanceReport": { "type": "boolean" },
+        "canVoidFinanceTransaction": { "type": "boolean" },
+        "canEditPaidTransaction": { "type": "boolean" },
+        "assignedProjectIds": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "themePreference": { "type": "string" }
+      },
+      "required": ["uid", "role", "isActive", "createdAt", "updatedAt"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Project definition",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectName": { "type": "string", "maxLength": 200 },
+        "projectCode": { "type": "string", "maxLength": 50 },
+        "projectType": { "type": "string" },
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "clientEmail": { "type": "string" },
+        "location": { "type": "string" },
+        "startDate": { "type": "string" },
+        "targetDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["Planning", "Berjalan", "Hold", "Selesai", "Cancelled"] },
+        "description": { "type": "string" },
+        "members": { "type": "array", "items": { "type": "string" } },
+        "contractValue": { "type": "number" },
+        "expectedProfit": { "type": "number" },
+        "budgetOtherExpenses": { "type": "number" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "projectName", "projectCode", "status", "createdBy", "createdAt", "updatedAt"]
+    },
+    "ProjectExpense": {
+      "title": "ProjectExpense",
+      "description": "Operational expenses incurred for a project",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "expenseNumber": { "type": "string" },
+        "expenseCategory": { "type": "string" },
+        "expenseDate": { "type": "string" },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "paidTo": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "status": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "projectId", "expenseNumber", "expenseCategory", "amount", "status", "createdBy", "createdAt", "updatedAt"]
+    },
+    "CompanySettings": {
+      "title": "CompanySettings",
+      "description": "Company profile and legal entity configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "companyName": { "type": "string" },
+        "brandName": { "type": "string" },
+        "tagline": { "type": "string" },
+        "address": { "type": "string" },
+        "city": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "taxId": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "companyName", "brandName", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles and permissions."
+    },
+    "/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/Project" },
+      "description": "Projects managed by the application."
+    },
+    "/projectExpenses/{expenseId}": {
+      "schema": { "$ref": "#/entities/ProjectExpense" },
+      "description": "Project operational expenses."
+    },
+    "/companySettings/{settingId}": {
+      "schema": { "$ref": "#/entities/CompanySettings" },
+      "description": "Company master details and legal settings."
+    },
+    "/pdfTemplates/{templateId}": {
+      "schema": "string",
+      "description": "PDF Document Templates for Quotation and Invoice."
+    },
+    "/drawingTemplates/{templateId}": {
+      "schema": "string",
+      "description": "Master drawing sheet templates."
+    },
+    "/drawingTemplateGroups/{groupId}": {
+      "schema": "string",
+      "description": "Drawing template groups and disciplines."
+    },
+    "/drawingTemplateItems/{itemId}": {
+      "schema": "string",
+      "description": "Drawing template sheet items."
+    },
+    "/drawingGroups/{groupId}": {
+      "schema": "string",
+      "description": "Project drawing groups and disciplines."
+    },
+    "/drawingItems/{itemId}": {
+      "schema": "string",
+      "description": "Project drawing sheet items."
+    },
+    "/drawingRevisions/{revisionId}": {
+      "schema": "string",
+      "description": "Revisions and approval history of drawing items."
+    },
+    "/drawingTransmittals/{transmittalId}": {
+      "schema": "string",
+      "description": "Document transmittal issues and distribution logs."
+    },
+    "/clients/{clientId}": {
+      "schema": "string",
+      "description": "Master client company and contact records."
+    },
+    "/quotations/{quotationId}": {
+      "schema": "string",
+      "description": "Cost proposals and quotations for clients."
+    },
+    "/financeTerms/{termId}": {
+      "schema": "string",
+      "description": "Payment milestones and billing terms for projects."
+    },
+    "/invoices/{invoiceId}": {
+      "schema": "string",
+      "description": "Client billing invoices and progress claims."
+    },
+    "/clientPayments/{paymentId}": {
+      "schema": "string",
+      "description": "Payment receipts from clients."
+    },
+    "/vendors/{vendorId}": {
+      "schema": "string",
+      "description": "Subcontractors and supplier master data."
+    },
+    "/projectVendors/{projectVendorId}": {
+      "schema": "string",
+      "description": "Vendor contracts allocated to projects."
+    },
+    "/vendorPaymentTerms/{termId}": {
+      "schema": "string",
+      "description": "Vendor billing milestones and payment terms."
+    },
+    "/vendorBills/{billId}": {
+      "schema": "string",
+      "description": "Invoices and progress claims received from vendors."
+    },
+    "/vendorPayments/{paymentId}": {
+      "schema": "string",
+      "description": "Disbursement records to vendors."
+    },
+    "/cashflowEntries/{entryId}": {
+      "schema": "string",
+      "description": "Cash inflow and outflow journal entries."
+    },
+    "/activityLogs/{logId}": {
+      "schema": "string",
+      "description": "Audit trail of system and user activities."
+    },
+    "/financialAuditLogs/{logId}": {
+      "schema": "string",
+      "description": "Immutable ledger of financial mutations."
+    },
+    "/aiAuditLogs/{logId}": {
+      "schema": "string",
+      "description": "Security audit records of AI interactions."
+    },
+    "/documentCounters/{counterId}": {
+      "schema": "string",
+      "description": "Sequential document number counters."
+    },
+    "/generatedDocuments/{documentId}": {
+      "schema": "string",
+      "description": "Historical record of generated PDF documents."
+    },
+    "/systemSettings/{settingId}": {
+      "schema": "string",
+      "description": "System-wide integration configurations and API keys."
+    }
+  }
+}

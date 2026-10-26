@@ -1,0 +1,189 @@
+import React, { useState, useEffect } from 'react';
+import { Modal, Input, Button } from '../ui';
+import { useProjects } from '../../context/ProjectContext';
+import { Project, Client } from '../../types';
+import toast from 'react-hot-toast';
+import { db } from '../../lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
+
+interface ProjectSettingsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  project: Project;
+}
+
+export function ProjectSettingsModal({ isOpen, onClose, project }: ProjectSettingsModalProps) {
+  const { updateProject } = useProjects();
+  const [clients, setClients] = useState<Client[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [formData, setFormData] = useState({
+    projectName: '',
+    projectCode: '',
+    projectType: '',
+    clientId: '',
+    location: '',
+  });
+
+  useEffect(() => {
+    // Fetch clients independently since this modal might be used outside ProjectDetailView
+    const fetchClients = async () => {
+      try {
+        const snapshot = await getDocs(collection(db, 'clients'));
+        const clientList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client));
+        setClients(clientList);
+      } catch (error) {
+        console.error("Failed to fetch clients for project settings:", error);
+      }
+    };
+    
+    if (isOpen) {
+      fetchClients();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && project) {
+      setFormData({
+        projectName: project.projectName || '',
+        projectCode: project.projectCode || '',
+        projectType: project.projectType || '',
+        clientId: project.clientId || '',
+        location: project.location || '',
+      });
+    }
+  }, [isOpen, project]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.projectName.trim()) {
+      toast.error('Nama proyek wajib diisi');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      let clientName = project.clientName;
+      let clientEmail = project.clientEmail;
+      
+      if (formData.clientId !== project.clientId) {
+        const selectedClient = clients.find(c => c.id === formData.clientId);
+        if (selectedClient) {
+          clientName = selectedClient.clientName;
+          clientEmail = selectedClient.email || '';
+        }
+      }
+
+      await updateProject(project.id, {
+        projectName: formData.projectName,
+        projectCode: formData.projectCode,
+        projectType: formData.projectType,
+        clientId: formData.clientId,
+        clientName: clientName,
+        clientEmail: clientEmail,
+        location: formData.location
+      });
+      toast.success('Pengaturan proyek berhasil disimpan');
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal menyimpan pengaturan proyek');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Pengaturan Proyek">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-[var(--color-text-secondary)]">Nama Proyek</label>
+            <Input 
+              value={formData.projectName} 
+              onChange={e => setFormData({...formData, projectName: e.target.value})} 
+              placeholder="Contoh: Rumah Tinggal Bapak Budi"
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-[var(--color-text-secondary)]">ID Proyek (Kode)</label>
+            <Input 
+              value={formData.projectCode} 
+              onChange={e => setFormData({...formData, projectCode: e.target.value})} 
+              placeholder="Contoh: RB-01"
+              required
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-[var(--color-text-secondary)]">Jenis / Bidang Pekerjaan</label>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: 'Arsitektur', label: 'Arsitektur' },
+              { id: 'Struktur', label: 'Struktur' },
+              { id: 'MEP', label: 'MEP' },
+              { id: 'Interior', label: 'Interior' },
+              { id: 'Masterplan', label: 'Masterplan' },
+              { id: 'Infrastruktur', label: 'Infrastruktur' },
+              { id: 'QS', label: 'Quantity Surveyor (QS)' }
+            ].map(type => {
+              const isSelected = formData.projectType.split(', ').includes(type.id);
+              return (
+                <button
+                  key={type.id}
+                  type="button"
+                  onClick={() => {
+                    const types = formData.projectType.split(', ').filter(Boolean);
+                    if (isSelected) {
+                      setFormData({...formData, projectType: types.filter(t => t !== type.id).join(', ')});
+                    } else {
+                      setFormData({...formData, projectType: [...types, type.id].join(', ')});
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                    isSelected 
+                      ? 'bg-[var(--color-accent-blue)] text-white shadow-sm border-[var(--color-accent-blue)]' 
+                      : 'bg-[var(--color-surface)] text-[var(--color-text-secondary)] border-[var(--color-border)] hover:bg-[var(--color-bg-secondary)]'
+                  } border`}
+                >
+                  {type.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-[var(--color-text-secondary)]">Klien</label>
+          <select
+            className="w-full h-10 px-3 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-shadow"
+            value={formData.clientId}
+            onChange={(e) => setFormData({...formData, clientId: e.target.value})}
+          >
+            <option value="">Pilih Klien (Opsional)</option>
+            {clients.map(c => (
+              <option key={c.id} value={c.id}>{c.clientName} {c.companyName ? `(${c.companyName})` : ''}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-medium text-[var(--color-text-secondary)]">Lokasi Proyek</label>
+          <Input 
+            value={formData.location} 
+            onChange={e => setFormData({...formData, location: e.target.value})} 
+            placeholder="Contoh: Jakarta Selatan"
+          />
+        </div>
+
+        <div className="flex justify-end gap-3 pt-4 border-t border-[var(--color-border)] mt-6">
+          <Button type="button" variant="ghost" onClick={onClose}>Batal</Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Menyimpan...' : 'Simpan Perubahan'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}

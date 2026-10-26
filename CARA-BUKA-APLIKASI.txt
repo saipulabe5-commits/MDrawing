@@ -1,0 +1,26 @@
+CARA MEMBUKA MDRAWING DI WINDOWS
+
+1. Ekstrak seluruh ZIP aplikasi. Jangan menjalankan BAT dari dalam ZIP.
+2. Pastikan Node.js 22.18+ dalam versi 22 atau Node.js 24 telah terpasang
+   (termasuk npm). Unduh dari https://nodejs.org/ jika belum tersedia.
+3. Klik dua kali BUKA-MDRAWING.bat di folder yang sama dengan package.json.
+4. Penggunaan pertama memerlukan internet untuk memasang kebutuhan aplikasi.
+   Tunggu hingga persiapan selesai. Browser bawaan Windows akan dibuka setelah
+   server siap di http://127.0.0.1:3000.
+5. Biarkan jendela MDrawing terbuka. Tutup jendela atau tekan Ctrl+C untuk berhenti.
+
+Klik ulang BAT akan membuka instance MDrawing yang sudah berjalan di port 3000.
+Jika port dipakai aplikasi lain, launcher menampilkan pesan tanpa menghentikannya.
+Build dibuat saat belum tersedia atau sumber aplikasi lebih baru daripada build.
+
+KONFIGURASI
+
+Launcher membaca .env dan .env.local jika tersedia di folder aplikasi melalui
+fitur environment file Node. .env.local mengungguli .env; environment yang sudah
+ada mengungguli keduanya. Jangan membagikan file berisi kunci/rahasia.
+Launcher menetapkan HOST=127.0.0.1, PORT=3000, dan NODE_ENV=production untuk
+penggunaan lokal. Tidak ada deploy atau perubahan konfigurasi Firebase otomatis.
+
+Login, database, AI, dan email tetap memerlukan konfigurasi layanan yang benar.
+Terbukanya halaman di browser bukan bukti bahwa semua layanan sudah siap.
+Batas perbaikan serta langkah staging tetap mengikuti laporan audit/perbaikan.

@@ -1,0 +1,875 @@
+[
+  {
+    "groupName": "GENERAL",
+    "groupCode": "GEN",
+    "items": [
+      {
+        "no": 1,
+        "drawingNumber": "AR 0001",
+        "drawingName": "DRAWING LIST",
+        "scale": "NTS"
+      },
+      {
+        "no": 2,
+        "drawingNumber": "AR 0002",
+        "drawingName": "DRAWING LIST",
+        "scale": "NTS"
+      },
+      {
+        "no": 3,
+        "drawingNumber": "AR 0100",
+        "drawingName": "BLOCK PLAN",
+        "scale": "1:250"
+      },
+      {
+        "no": 4,
+        "drawingNumber": "AR 0200",
+        "drawingName": "SITE PLAN",
+        "scale": "1:250"
+      },
+      {
+        "no": 5,
+        "drawingNumber": "AR 0301",
+        "drawingName": "GROUND FLOOR PLAN",
+        "scale": "1:150"
+      },
+      {
+        "no": 6,
+        "drawingNumber": "AR 0302",
+        "drawingName": "1ST FLOOR PLAN",
+        "scale": "1:150"
+      },
+      {
+        "no": 7,
+        "drawingNumber": "AR 0303",
+        "drawingName": "2ND FLOOR PLAN",
+        "scale": "1:150"
+      },
+      {
+        "no": 8,
+        "drawingNumber": "AR 0304",
+        "drawingName": "ROOFTOP PLAN",
+        "scale": "1:150"
+      },
+      {
+        "no": 9,
+        "drawingNumber": "AR 0305",
+        "drawingName": "ROOF PLAN & DETAIL",
+        "scale": "1:150",
+        "notes": "Denah rencana atap & detail arsitektur"
+      },
+      {
+        "no": 10,
+        "drawingNumber": "AR 0401",
+        "drawingName": "ELEVATION 1",
+        "scale": "1:150"
+      },
+      {
+        "no": 11,
+        "drawingNumber": "AR 0402",
+        "drawingName": "ELEVATION 2",
+        "scale": "1:150"
+      },
+      {
+        "no": 12,
+        "drawingNumber": "AR 0403",
+        "drawingName": "ELEVATION 3",
+        "scale": "1:150"
+      },
+      {
+        "no": 13,
+        "drawingNumber": "AR 0404",
+        "drawingName": "ELEVATION 4",
+        "scale": "1:150"
+      },
+      {
+        "no": 14,
+        "drawingNumber": "AR 0501",
+        "drawingName": "SECTION A",
+        "scale": "1:150"
+      },
+      {
+        "no": 15,
+        "drawingNumber": "AR 0502",
+        "drawingName": "SECTION B",
+        "scale": "1:150"
+      },
+      {
+        "no": 16,
+        "drawingNumber": "AR 0503",
+        "drawingName": "SECTION C",
+        "scale": "1:150"
+      },
+      {
+        "no": 17,
+        "drawingNumber": "AR 0504",
+        "drawingName": "SECTION D",
+        "scale": "1:150"
+      },
+      {
+        "no": 18,
+        "drawingNumber": "AR 0505",
+        "drawingName": "SECTION E",
+        "scale": "1:150"
+      },
+      {
+        "no": 19,
+        "drawingNumber": "AR 0506",
+        "drawingName": "SECTION F",
+        "scale": "1:150"
+      },
+      {
+        "no": 20,
+        "drawingNumber": "AR 0507",
+        "drawingName": "SECTION G",
+        "scale": "1:150"
+      },
+      {
+        "no": 21,
+        "drawingNumber": "AR 0508",
+        "drawingName": "SECTION H",
+        "scale": "1:150"
+      },
+      {
+        "no": 22,
+        "drawingNumber": "AR 0509",
+        "drawingName": "SECTION I",
+        "scale": "1:150"
+      }
+    ]
+  },
+  {
+    "groupName": "FINISHING PLAN",
+    "groupCode": "FIN",
+    "items": [
+      {
+        "no": 23,
+        "drawingNumber": "AR 0600",
+        "drawingName": "MATERIAL SCHEDULE",
+        "scale": "NTS"
+      },
+      {
+        "no": 24,
+        "drawingNumber": "AR 0601",
+        "drawingName": "FLOORING PLAN - GROUND FLOOR",
+        "scale": "1:150"
+      },
+      {
+        "no": 25,
+        "drawingNumber": "AR 0602",
+        "drawingName": "FLOORING PLAN - 1ST FLOOR",
+        "scale": "1:150"
+      },
+      {
+        "no": 26,
+        "drawingNumber": "AR 0603",
+        "drawingName": "FLOORING PLAN - 2ND FLOOR",
+        "scale": "1:150"
+      },
+      {
+        "no": 27,
+        "drawingNumber": "AR 0701",
+        "drawingName": "WALL FINISH PLAN - GROUND FLOOR",
+        "scale": "1:150"
+      },
+      {
+        "no": 28,
+        "drawingNumber": "AR 0702",
+        "drawingName": "WALL FINISH PLAN - 1ST FLOOR",
+        "scale": "1:150"
+      },
+      {
+        "no": 29,
+        "drawingNumber": "AR 0703",
+        "drawingName": "WALL FINISH PLAN - 2ND FLOOR",
+        "scale": "1:150"
+      },
+      {
+        "no": 30,
+        "drawingNumber": "AR 0801",
+        "drawingName": "CEILING PLAN - GROUND FLOOR",
+        "scale": "1:150"
+      },
+      {
+        "no": 31,
+        "drawingNumber": "AR 0802",
+        "drawingName": "CEILING PLAN - 1ST FLOOR",
+        "scale": "1:150"
+      },
+      {
+        "no": 32,
+        "drawingNumber": "AR 0803",
+        "drawingName": "CEILING PLAN - 2ND FLOOR",
+        "scale": "1:150"
+      }
+    ]
+  },
+  {
+    "groupName": "DOOR WINDOW SCHEDULE",
+    "groupCode": "DOO",
+    "items": [
+      {
+        "no": 33,
+        "drawingNumber": "AR 0901",
+        "drawingName": "SCHEDULE DOOR & WINDOWS - GROUND FLOOR",
+        "scale": "1:150"
+      },
+      {
+        "no": 34,
+        "drawingNumber": "AR 0902",
+        "drawingName": "SCHEDULE DOOR & WINDOWS - 1ST FLOOR",
+        "scale": "1:150"
+      },
+      {
+        "no": 35,
+        "drawingNumber": "AR 0903",
+        "drawingName": "SCHEDULE DOOR & WINDOWS - 2ND FLOOR",
+        "scale": "1:150"
+      },
+      {
+        "no": 36,
+        "drawingNumber": "AR 0905",
+        "drawingName": "SCHEDULE DOOR & WINDOWS - DETAILS",
+        "scale": "1:50"
+      },
+      {
+        "no": 37,
+        "drawingNumber": "AR 0906",
+        "drawingName": "SCHEDULE DOOR & WINDOWS - DETAILS",
+        "scale": "1:50"
+      },
+      {
+        "no": 38,
+        "drawingNumber": "AR 0906-B",
+        "drawingName": "SCHEDULE DOOR & WINDOWS - DETAILS (LANJUTAN)",
+        "scale": "1:50",
+        "notes": "Detail kusen pintu & jendela tambahan"
+      },
+      {
+        "no": 39,
+        "drawingNumber": "AR 0907",
+        "drawingName": "SCHEDULE DOOR & WINDOWS - DETAILS",
+        "scale": "1:50"
+      },
+      {
+        "no": 40,
+        "drawingNumber": "AR 0908",
+        "drawingName": "SCHEDULE DOOR & WINDOWS - DETAILS",
+        "scale": "1:50"
+      },
+      {
+        "no": 41,
+        "drawingNumber": "AR 0909",
+        "drawingName": "SCHEDULE DOOR & WINDOWS - DETAILS",
+        "scale": "1:50"
+      },
+      {
+        "no": 42,
+        "drawingNumber": "AR 0910",
+        "drawingName": "SCHEDULE DOOR & WINDOWS - DETAILS",
+        "scale": "1:50"
+      }
+    ]
+  },
+  {
+    "groupName": "BATHROOMS, POWDER ROOM, & OUTDOOR SHOWER DETAILS",
+    "groupCode": "BAT",
+    "items": [
+      {
+        "no": 43,
+        "drawingNumber": "AR 1001",
+        "drawingName": "POWDER ROOM - LAYOUT PLAN",
+        "scale": "1:25"
+      },
+      {
+        "no": 44,
+        "drawingNumber": "AR 1002",
+        "drawingName": "POWDER ROOM - FINISHING PLAN",
+        "scale": "1:25"
+      },
+      {
+        "no": 45,
+        "drawingNumber": "AR 1003",
+        "drawingName": "POWDER ROOM - SECTION A",
+        "scale": "1:25"
+      },
+      {
+        "no": 46,
+        "drawingNumber": "AR 1004",
+        "drawingName": "POWDER ROOM - SECTION B",
+        "scale": "1:25"
+      },
+      {
+        "no": 47,
+        "drawingNumber": "AR 1005",
+        "drawingName": "POWDER ROOM - SECTION C&D",
+        "scale": "1:25"
+      },
+      {
+        "no": 48,
+        "drawingNumber": "AR 1006",
+        "drawingName": "GUEST BATHROOM 1 - LAYOUT PLAN",
+        "scale": "1:25"
+      },
+      {
+        "no": 49,
+        "drawingNumber": "AR 1007",
+        "drawingName": "GUEST BATHROOM 1 - FINISHING PLAN",
+        "scale": "1:25"
+      },
+      {
+        "no": 50,
+        "drawingNumber": "AR 1008",
+        "drawingName": "GUEST BATHROOM 1 - SECTION A",
+        "scale": "1:25"
+      },
+      {
+        "no": 51,
+        "drawingNumber": "AR 1009",
+        "drawingName": "GUEST BATHROOM 1 - SECTION B",
+        "scale": "1:25"
+      },
+      {
+        "no": 52,
+        "drawingNumber": "AR 1010",
+        "drawingName": "GUEST BATHROOM 1 - SECTION C & D",
+        "scale": "1:25"
+      },
+      {
+        "no": 53,
+        "drawingNumber": "AR 1011",
+        "drawingName": "JUNIOR BATHROOM - LAYOUT PLAN",
+        "scale": "1:25"
+      },
+      {
+        "no": 54,
+        "drawingNumber": "AR 1012",
+        "drawingName": "JUNIOR BATHROOM - FINISHING PLAN",
+        "scale": "1:25"
+      },
+      {
+        "no": 55,
+        "drawingNumber": "AR 1013",
+        "drawingName": "JUNIOR BATHROOM - SECTION A",
+        "scale": "1:25"
+      },
+      {
+        "no": 56,
+        "drawingNumber": "AR 1014",
+        "drawingName": "JUNIOR BATHROOM - SECTION B",
+        "scale": "1:25"
+      },
+      {
+        "no": 57,
+        "drawingNumber": "AR 1015",
+        "drawingName": "JUNIOR BATHROOM - SECTION C & D",
+        "scale": "1:25"
+      },
+      {
+        "no": 58,
+        "drawingNumber": "AR 1016",
+        "drawingName": "MASTER BATHROOM - LAYOUT PLAN",
+        "scale": "1:25"
+      },
+      {
+        "no": 59,
+        "drawingNumber": "AR 1017",
+        "drawingName": "MASTER BATHROOM - FINISHING PLAN",
+        "scale": "1:25"
+      },
+      {
+        "no": 60,
+        "drawingNumber": "AR 1018",
+        "drawingName": "MASTER BATHROOM - SECTION A",
+        "scale": "1:25"
+      },
+      {
+        "no": 61,
+        "drawingNumber": "AR 1019",
+        "drawingName": "MASTER BATHROOM - SECTION B",
+        "scale": "1:25"
+      },
+      {
+        "no": 62,
+        "drawingNumber": "AR 1020",
+        "drawingName": "MASTER BATHROOM - SECTION C & D",
+        "scale": "1:25"
+      },
+      {
+        "no": 63,
+        "drawingNumber": "AR 1021",
+        "drawingName": "GUEST BATHROOM 2 - LAYOUT PLAN",
+        "scale": "1:25"
+      },
+      {
+        "no": 64,
+        "drawingNumber": "AR 1022",
+        "drawingName": "GUEST BATHROOM 2 - FINISHING PLAN",
+        "scale": "1:25"
+      },
+      {
+        "no": 65,
+        "drawingNumber": "AR 1023",
+        "drawingName": "GUEST BATHROOM 2 - SECTION A",
+        "scale": "1:25"
+      },
+      {
+        "no": 66,
+        "drawingNumber": "AR 1024",
+        "drawingName": "GUEST BATHROOM 2 - SECTION B",
+        "scale": "1:25"
+      },
+      {
+        "no": 67,
+        "drawingNumber": "AR 1025",
+        "drawingName": "GUEST BATHROOM 2 - SECTION C & D",
+        "scale": "1:25"
+      },
+      {
+        "no": 68,
+        "drawingNumber": "AR 1026",
+        "drawingName": "GUEST BATHROOM 3 - LAYOUT PLAN",
+        "scale": "1:25"
+      },
+      {
+        "no": 69,
+        "drawingNumber": "AR 1027",
+        "drawingName": "GUEST BATHROOM 3 - FINISHING PLAN",
+        "scale": "1:25"
+      },
+      {
+        "no": 70,
+        "drawingNumber": "AR 1028",
+        "drawingName": "GUEST BATHROOM 3 - SECTION A",
+        "scale": "1:25"
+      },
+      {
+        "no": 71,
+        "drawingNumber": "AR 1029",
+        "drawingName": "GUEST BATHROOM 3 - SECTION B",
+        "scale": "1:25"
+      },
+      {
+        "no": 72,
+        "drawingNumber": "AR 1030",
+        "drawingName": "GUEST BATHROOM 3 - SECTION C & D",
+        "scale": "1:25"
+      },
+      {
+        "no": 73,
+        "drawingNumber": "AR 1031",
+        "drawingName": "MAID BATHROOM - LAYOUT PLAN",
+        "scale": "1:25"
+      },
+      {
+        "no": 74,
+        "drawingNumber": "AR 1032",
+        "drawingName": "MAID BATHROOM - FINISHING PLAN",
+        "scale": "1:25"
+      },
+      {
+        "no": 75,
+        "drawingNumber": "AR 1033",
+        "drawingName": "MAID BATHROOM - SECTION A",
+        "scale": "1:25"
+      },
+      {
+        "no": 76,
+        "drawingNumber": "AR 1034",
+        "drawingName": "MAID BATHROOM - SECTION B",
+        "scale": "1:25"
+      },
+      {
+        "no": 77,
+        "drawingNumber": "AR 1035",
+        "drawingName": "MAID BATHROOM - SECTION C & D",
+        "scale": "1:25"
+      },
+      {
+        "no": 78,
+        "drawingNumber": "AR 1036",
+        "drawingName": "OUTDOOR SHOWER - PLAN, SECTIONS",
+        "scale": "1:25"
+      },
+      {
+        "no": 79,
+        "drawingNumber": "AR 1037",
+        "drawingName": "BATHROOM DETAILS",
+        "scale": "1:10 1:5"
+      },
+      {
+        "no": 80,
+        "drawingNumber": "AR 1038",
+        "drawingName": "BATHROOM DETAILS",
+        "scale": "1:10 1:5"
+      }
+    ]
+  },
+  {
+    "groupName": "POOL & POND DETAILS",
+    "groupCode": "POO",
+    "items": [
+      {
+        "no": 81,
+        "drawingNumber": "AR 1101",
+        "drawingName": "POOL - PLAN",
+        "scale": "1:40"
+      },
+      {
+        "no": 82,
+        "drawingNumber": "AR 1102",
+        "drawingName": "POOL - SECTION A, B, & C",
+        "scale": "1:40"
+      },
+      {
+        "no": 83,
+        "drawingNumber": "AR 1103",
+        "drawingName": "POOL - DETAILS",
+        "scale": "1:10"
+      },
+      {
+        "no": 84,
+        "drawingNumber": "AR 1104",
+        "drawingName": "WATER FEATURE 1 - PLAN",
+        "scale": "1:25"
+      },
+      {
+        "no": 85,
+        "drawingNumber": "AR 1105",
+        "drawingName": "WATER FEATURE 1 - SECTION A , B & C",
+        "scale": "1:25"
+      },
+      {
+        "no": 86,
+        "drawingNumber": "AR 1106",
+        "drawingName": "WATER FEATURE 2 - PLAN",
+        "scale": "1:25"
+      },
+      {
+        "no": 87,
+        "drawingNumber": "AR 1107",
+        "drawingName": "WATER FEATURE 2 - SECTION A & B",
+        "scale": "1:25"
+      }
+    ]
+  },
+  {
+    "groupName": "STAIRS",
+    "groupCode": "STA",
+    "items": [
+      {
+        "no": 88,
+        "drawingNumber": "AR 1201",
+        "drawingName": "MAIN STAIR - PLANS",
+        "scale": "1:50,1:25"
+      },
+      {
+        "no": 89,
+        "drawingNumber": "AR 1202",
+        "drawingName": "MAIN STAIR - SECTIONS",
+        "scale": "1:25,1:5"
+      },
+      {
+        "no": 90,
+        "drawingNumber": "AR 1203",
+        "drawingName": "MAIN STAIR - DETAILS",
+        "scale": "1:25"
+      },
+      {
+        "no": 91,
+        "drawingNumber": "AR 1204",
+        "drawingName": "MAIN STAIR - DETAILS",
+        "scale": "1:25,1:5"
+      },
+      {
+        "no": 92,
+        "drawingNumber": "AR 1205",
+        "drawingName": "SERVICE STAIR - PLAN",
+        "scale": "1:25"
+      },
+      {
+        "no": 93,
+        "drawingNumber": "AR 1206",
+        "drawingName": "SERVICE STAIR - ELEVATION",
+        "scale": "1:25,1:5"
+      },
+      {
+        "no": 94,
+        "drawingNumber": "AR 1207",
+        "drawingName": "SERVICE STAIR - SECTION A",
+        "scale": "1:25"
+      },
+      {
+        "no": 95,
+        "drawingNumber": "AR 1208",
+        "drawingName": "SERVICE STAIR - SECTION B & DETAILS 1",
+        "scale": "1:25,1:5"
+      },
+      {
+        "no": 96,
+        "drawingNumber": "AR 1209",
+        "drawingName": "SERVICE STAIR - DETAILS 2 & 3",
+        "scale": "1:25"
+      },
+      {
+        "no": 97,
+        "drawingNumber": "AR 1210",
+        "drawingName": "STAIRS - DETAILS (RAILING & STEP)",
+        "scale": "1:25",
+        "notes": "Detail tangga, railing & pijakan"
+      }
+    ]
+  },
+  {
+    "groupName": "TERRACE & HARDSCAPE",
+    "groupCode": "TER",
+    "items": [
+      {
+        "no": 98,
+        "drawingNumber": "AR 1301",
+        "drawingName": "ENTRANCE - PLAN & ELEVATION 1",
+        "scale": "1:100"
+      },
+      {
+        "no": 99,
+        "drawingNumber": "AR 1302",
+        "drawingName": "ENTRANCE - SECTION A & B, DETAIL",
+        "scale": "1:100"
+      },
+      {
+        "no": 100,
+        "drawingNumber": "AR 1303",
+        "drawingName": "SIDE TERRACE - PLAN",
+        "scale": "1:100"
+      },
+      {
+        "no": 101,
+        "drawingNumber": "AR 1304",
+        "drawingName": "SIDE TERRACE - SECTION A & B, DETAILS",
+        "scale": "1:100"
+      },
+      {
+        "no": 102,
+        "drawingNumber": "AR 1305",
+        "drawingName": "BACKYARD - PLAN",
+        "scale": "1:100"
+      },
+      {
+        "no": 103,
+        "drawingNumber": "AR 1306",
+        "drawingName": "BACKYARD - SECTION A & B, DETAILS",
+        "scale": "1:100"
+      }
+    ]
+  },
+  {
+    "groupName": "SCREEN",
+    "groupCode": "SCR",
+    "items": [
+      {
+        "no": 104,
+        "drawingNumber": "AR 1401",
+        "drawingName": "JUNIOR BEDROOM SCREEN - PLAN",
+        "scale": "1:50"
+      },
+      {
+        "no": 105,
+        "drawingNumber": "AR 1402",
+        "drawingName": "JUNIOR BEDROOM SCREEN - ELEVATION 1&2",
+        "scale": "1:50"
+      },
+      {
+        "no": 106,
+        "drawingNumber": "AR 1403",
+        "drawingName": "MASTER BEDROOM SCREEN - PLAN",
+        "scale": "1:50"
+      },
+      {
+        "no": 107,
+        "drawingNumber": "AR 1404",
+        "drawingName": "MASTER BEDROOM SCREEN - ELEVATION 1&2",
+        "scale": "1:50"
+      },
+      {
+        "no": 108,
+        "drawingNumber": "AR 1405",
+        "drawingName": "ENTRANCE SCREEN - PLAN, ELEVATION",
+        "scale": "1:25, 1:5"
+      },
+      {
+        "no": 109,
+        "drawingNumber": "AR 1406",
+        "drawingName": "SIDE SCREEN (WATER FEATURE) - PLAN, ELEVATION 1&2",
+        "scale": "1:25, 1:5"
+      },
+      {
+        "no": 110,
+        "drawingNumber": "AR 1407",
+        "drawingName": "ROOFTOP SCREEN - PLAN, ELEVATION",
+        "scale": "1:50"
+      },
+      {
+        "no": 111,
+        "drawingNumber": "AR 1408",
+        "drawingName": "SERVICE SCREEN (LAUNDRY AREA) - PLAN, ELEVATION",
+        "scale": "1:50 1:25 1:5"
+      },
+      {
+        "no": 112,
+        "drawingNumber": "AR 1409",
+        "drawingName": "SCREEN - MODULE DETAILS",
+        "scale": "1:100"
+      },
+      {
+        "no": 113,
+        "drawingNumber": "AR 1410",
+        "drawingName": "GRILL SCREEN 1 - PLAN",
+        "scale": "1:100"
+      },
+      {
+        "no": 114,
+        "drawingNumber": "AR 1411",
+        "drawingName": "GRILL SCREEN 1 - ELEVATION 1&2 , DETAILS",
+        "scale": "1:100"
+      }
+    ]
+  },
+  {
+    "groupName": "FENCE",
+    "groupCode": "FEN",
+    "items": [
+      {
+        "no": 115,
+        "drawingNumber": "AR 1501",
+        "drawingName": "FENCE - PLAN & ELEVATION",
+        "scale": "1:50"
+      },
+      {
+        "no": 116,
+        "drawingNumber": "AR 1502",
+        "drawingName": "FENCE - ELEVATION (OPENED & CLOSED GATE)",
+        "scale": "1:50"
+      },
+      {
+        "no": 117,
+        "drawingNumber": "AR 1503",
+        "drawingName": "FENCE - SECTION A,B, & C",
+        "scale": "1:20"
+      },
+      {
+        "no": 118,
+        "drawingNumber": "AR 1504",
+        "drawingName": "FENCE - DETAILS",
+        "scale": "1:5"
+      },
+      {
+        "no": 119,
+        "drawingNumber": "AR 1505",
+        "drawingName": "FENCE - GATE PLAN & ELEVATION",
+        "scale": "1:20"
+      },
+      {
+        "no": 120,
+        "drawingNumber": "AR 1506",
+        "drawingName": "FENCE - GRILL PLAN, ELEVATION, & DETAILS",
+        "scale": "1:20 1:10 1:5"
+      }
+    ]
+  },
+  {
+    "groupName": "RAILING & PLANTER",
+    "groupCode": "RAI",
+    "items": [
+      {
+        "no": 121,
+        "drawingNumber": "AR 1601",
+        "drawingName": "RAILING & PLANTER 1 - PLAN & ELEVATIONS",
+        "scale": "1:50"
+      },
+      {
+        "no": 122,
+        "drawingNumber": "AR 1602",
+        "drawingName": "RAILING & PLANTER 1 - SECTION & DETAILS",
+        "scale": "1:25 1:5"
+      },
+      {
+        "no": 123,
+        "drawingNumber": "AR 1603",
+        "drawingName": "RAILING & PLANTER 2 - PLAN",
+        "scale": "1:50"
+      },
+      {
+        "no": 124,
+        "drawingNumber": "AR 1604",
+        "drawingName": "RAILING & PLANTER 2 - ELEVATIONS, SECTION, & DETAIL",
+        "scale": "1:50 1:20"
+      },
+      {
+        "no": 125,
+        "drawingNumber": "AR 1605",
+        "drawingName": "RAILING & PLANTER 2 - DETAILS",
+        "scale": "1:5"
+      },
+      {
+        "no": 126,
+        "drawingNumber": "AR 1606",
+        "drawingName": "RAILING & PLANTER 3 - PLAN, SECTION & ELEVATION",
+        "scale": "1:50"
+      }
+    ]
+  },
+  {
+    "groupName": "CANOPY",
+    "groupCode": "CAN",
+    "items": [
+      {
+        "no": 127,
+        "drawingNumber": "AR 1701",
+        "drawingName": "GARAGE CANOPY - PLAN",
+        "scale": "1:50"
+      },
+      {
+        "no": 128,
+        "drawingNumber": "AR 1702",
+        "drawingName": "GARAGE CANOPY - ELEVATION, SECTION, & DETAIL",
+        "scale": "1:50"
+      },
+      {
+        "no": 129,
+        "drawingNumber": "AR 1703",
+        "drawingName": "GARAGE CANOPY - DETAILS",
+        "scale": "1:5"
+      },
+      {
+        "no": 130,
+        "drawingNumber": "AR 1704",
+        "drawingName": "BACKYARD CANOPY - PLAN",
+        "scale": "1:50"
+      },
+      {
+        "no": 131,
+        "drawingNumber": "AR 1705",
+        "drawingName": "BACKYARD CANOPY - ELEVATION, SECTION, & DETAIL",
+        "scale": "1:50"
+      },
+      {
+        "no": 132,
+        "drawingNumber": "AR 1706",
+        "drawingName": "BACKYARD CANOPY - DETAILS",
+        "scale": "1:5"
+      }
+    ]
+  },
+  {
+    "groupName": "OTHER DETAILS",
+    "groupCode": "OTH",
+    "items": [
+      {
+        "no": 133,
+        "drawingNumber": "AR 1801",
+        "drawingName": "COLUMN - PLAN, SECTION, DETAILS",
+        "scale": "1:20 1:10 1:5"
+      }
+    ]
+  }
+]
